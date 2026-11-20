@@ -1,0 +1,25 @@
+# Build outputs
+build/
+bin/
+*.o
+*.a
+*.so
+*.wasm
+
+# Node & package dependencies
+node_modules/
+
+# Test & distribution artifacts
+dist/
+dist_e2e/
+*.bin
+*.log
+.tmp_*
+*.iso
+*.gcz
+*.rvz
+
+# IDE & OS files
+.DS_Store
+.vscode/
+.idea/
