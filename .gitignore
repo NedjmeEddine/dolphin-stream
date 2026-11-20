@@ -1,6 +1,7 @@
 # Build outputs
 build/
 bin/
+disc_io_test
 *.o
 *.a
 *.so

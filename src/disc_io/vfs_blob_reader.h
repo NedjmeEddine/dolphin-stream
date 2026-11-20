@@ -6,20 +6,8 @@
 #include <memory>
 #include <string>
 
-#ifdef __cplusplus
-#ifndef _Atomic
-#define _Atomic
-#endif
-#ifndef _Static_assert
-#define _Static_assert static_assert
-#endif
-#endif
-
-// Include Layer 5 C VFS interface from submodule
-extern "C" {
-#include "externals/vfs-streamer/client/vfs/vfs_client.h"
-#include "externals/vfs-streamer/client/vfs/vfs_fs.h"
-}
+// Forward declaration of Layer 5 VFS handle from submodule
+struct VfsFs;
 
 namespace DiscIO {
 
@@ -57,7 +45,7 @@ public:
     ~VfsBlobReader() override;
 
     uint64_t GetDataSize() const override { return m_size; }
-    uint64_t GetRawSize() const override { return m_size; }
+    uint64_t GetRawSize() const override { return GetDataSize(); }
     uint64_t GetBlockSize() const override;
 
     // Synchronously reads `size` bytes starting at `offset` into `out_ptr`.

@@ -1,6 +1,18 @@
 #include "vfs_blob_reader.h"
 #include <iostream>
 
+#ifndef _Atomic
+#define _Atomic
+#endif
+#ifndef _Static_assert
+#define _Static_assert static_assert
+#endif
+
+extern "C" {
+#include "externals/vfs-streamer/client/vfs/vfs_client.h"
+#include "externals/vfs-streamer/client/vfs/vfs_fs.h"
+}
+
 namespace DiscIO {
 
 std::unique_ptr<VfsBlobReader> VfsBlobReader::Create(VfsFs* fs, const std::string& path) {
@@ -42,16 +54,10 @@ uint64_t VfsBlobReader::GetBlockSize() const {
 bool VfsBlobReader::Read(uint64_t offset, uint64_t size, uint8_t* out_ptr) {
     if (!out_ptr) return false;
     if (size == 0) return true;
-    if (offset >= m_size) return false;
+    if (offset >= m_size || offset + size > m_size) return false;
 
-    // Clamp read to end of disc image
-    uint64_t toRead = size;
-    if (offset + toRead > m_size) {
-        toRead = m_size - offset;
-    }
-
-    int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, toRead);
-    return bytesRead == static_cast<int64_t>(toRead);
+    int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, size);
+    return bytesRead == static_cast<int64_t>(size);
 }
 
 void VfsBlobReader::HintCold(uint64_t offset, uint64_t size) {

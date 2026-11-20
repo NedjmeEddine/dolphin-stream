@@ -98,12 +98,13 @@
     </div>
 
     <script type="module">
-        import { createHudOverlay } from '../externals/vfs-streamer/client/web/hud_overlay.mjs';
+        import { createHudOverlay } from './hud_overlay.mjs';
 
         const emuCanvas = document.getElementById('emulator-canvas');
         const hudCanvas = document.getElementById('hud-canvas');
         const badgeIso = document.getElementById('badge-iso');
         const badgeController = document.getElementById('badge-controller');
+        const badgeStream = document.getElementById('badge-stream');
         const btnToggleHud = document.getElementById('btn-toggle-hud');
         const btnFullscreen = document.getElementById('btn-fullscreen');
 
@@ -116,10 +117,19 @@
             badgeIso.className = "badge warn";
         }
 
+        // Wire HUD overlay
+        const hud = createHudOverlay(hudCanvas);
+        let latestHudSnapshot = null;
+        let opfsMode = 'stream-only';
+        let showHud = true;
+
         // Resize HUD canvas overlay
         function resize() {
             hudCanvas.width = window.innerWidth;
             hudCanvas.height = window.innerHeight;
+            if (hud && latestHudSnapshot && showHud) {
+                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
+            }
         }
         window.addEventListener('resize', resize);
         resize();
@@ -142,14 +152,52 @@
             }
         };
 
-        let showHud = true;
         btnToggleHud.onclick = () => {
             showHud = !showHud;
             hudCanvas.style.display = showHud ? 'block' : 'none';
+            if (showHud && latestHudSnapshot) {
+                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
+            }
         };
 
-        // Wire HUD overlay
-        const hud = createHudOverlay(hudCanvas);
+        // Launch out-of-core streaming workers
+        const channel = new MessageChannel();
+        const workerA = new Worker('worker_a.js', { type: 'module' });
+        const workerB = new Worker('worker_b.js', { type: 'module' });
+
+        workerA.postMessage({ type: 'PORT', port: channel.port1 }, [channel.port1]);
+        workerB.postMessage({ type: 'PORT', port: channel.port2 }, [channel.port2]);
+
+        workerB.onmessage = (e) => {
+            const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
+            if (type === 'HUD_SNAPSHOT') {
+                latestHudSnapshot = snapshot || e.data;
+                if (hud && showHud) {
+                    hud.render(latestHudSnapshot, {
+                        storageMode: opfsMode,
+                        gpuStatus: 'Active'
+                    });
+                }
+            } else if (type === 'STATUS') {
+                if (mode) opfsMode = mode;
+                if (badgeStream && effectivePoolMB) {
+                    badgeStream.textContent = `${effectivePoolMB} MB RAM Pool (${opfsMode})`;
+                }
+                workerB.postMessage({ type: 'ENABLE_HUD', enabled: true });
+            } else if (type === 'FATAL') {
+                console.error("Worker B fatal error:", reason);
+                if (badgeIso) {
+                    badgeIso.textContent = reason;
+                    badgeIso.className = "badge warn";
+                }
+            }
+        };
+
+        // Telemetry flush on tab close/hidden
+        const flushTelem = (r) => workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r });
+        document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
+        window.addEventListener('pagehide', () => flushTelem('pagehide'));
+
         console.log("DolphinStream web shell initialized.");
     </script>
 </body>
