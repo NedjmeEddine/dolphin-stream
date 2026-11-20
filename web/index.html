@@ -488,6 +488,9 @@
 
     <script type="module">
         import { createHudOverlay } from './hud_overlay.mjs';
+        import { createWiiSoundEngine } from './wii_audio.js';
+
+        const soundEngine = createWiiSoundEngine();
 
         const emuViewport = document.getElementById('viewport-wrapper');
         const emuCanvas = document.getElementById('emulator-canvas');
@@ -570,6 +573,7 @@
         };
 
         btnReturnMenu.onclick = () => {
+            soundEngine.playCancel();
             emuViewport.style.display = 'none';
         };
 
@@ -647,11 +651,26 @@
             }
         }
 
-        // Attach selection listeners to game channel slots
+        // Attach selection & hover sound listeners to channel slots
         channelSlots.forEach(slot => {
+            slot.addEventListener('mouseenter', () => {
+                if (slot.id === 'disc-channel') {
+                    soundEngine.playDisc();
+                } else {
+                    soundEngine.playHover();
+                }
+            });
+            slot.addEventListener('focus', () => {
+                if (slot.id === 'disc-channel') {
+                    soundEngine.playDisc();
+                } else {
+                    soundEngine.playHover();
+                }
+            });
             slot.addEventListener('click', () => {
                 const gameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
                 if (gameId) {
+                    soundEngine.playSelect();
                     const title = slot.querySelector('.channel-title')?.textContent.trim() || gameId;
                     launchGame(gameId, title);
                 }
