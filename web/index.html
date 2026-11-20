@@ -489,6 +489,7 @@
     <script type="module">
         import { createHudOverlay } from './hud_overlay.mjs';
         import { createWiiSoundEngine } from './wii_audio.js';
+        import { createGamepadNavigation } from './wii_input.js';
 
         const soundEngine = createWiiSoundEngine();
 
@@ -546,15 +547,32 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // Gamepad API input listener
+        // Gamepad API input listener & Wii menu navigation
+        const gamepadNav = createGamepadNavigation({
+            getElements: () => channelSlots,
+            onCancel: () => {
+                if (emuViewport.style.display === 'flex') {
+                    soundEngine.playCancel();
+                    emuViewport.style.display = 'none';
+                }
+            }
+        });
+
         window.addEventListener('gamepadconnected', (e) => {
             badgeController.textContent = `Gamepad: ${e.gamepad.id.slice(0, 18)}...`;
             badgeController.className = "badge ok";
+            gamepadNav.start();
         });
         window.addEventListener('gamepaddisconnected', () => {
-            badgeController.textContent = "No Gamepad";
-            badgeController.className = "badge";
+            const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+            const hasConnected = Array.from(gps).some(g => g && g.connected !== false);
+            if (!hasConnected) {
+                badgeController.textContent = "No Gamepad";
+                badgeController.className = "badge";
+                gamepadNav.stop();
+            }
         });
+        gamepadNav.start();
 
         btnFullscreen.onclick = () => {
             if (!document.fullscreenElement) {
