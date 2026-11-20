@@ -1,0 +1,11 @@
+{
+  "name": "dolphin-stream",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test:ui": "node --test web/ui.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}
