@@ -100,6 +100,34 @@ test('2.1: 4x3 Wii Channel Grid Layout & DOM Structure', async (t) => {
         const isEmuVisible = await emuViewport.isVisible();
         assert.equal(isEmuVisible, false, 'Emulator viewport must be initially hidden while browsing channels');
 
+        // Test 2.4: Channel Zoom and Start Banner Modal
+        await page.click('#channel-ssbm');
+
+        const bannerModal = await page.$('#wii-banner-modal');
+        assert.ok(bannerModal, '#wii-banner-modal must exist');
+        const isModalVisible = await bannerModal.isVisible();
+        assert.equal(isModalVisible, true, 'Clicking channel should display the Wii banner zoom modal');
+
+        const bannerTitle = await page.$eval('#banner-title', el => el.textContent.trim());
+        assert.equal(bannerTitle, 'Super Smash Bros. Melee', 'Banner modal must show selected game title');
+
+        const startBtn = await page.$('#btn-start-game');
+        assert.ok(startBtn, '#btn-start-game button must exist');
+
+        const backBtn = await page.$('#btn-banner-back');
+        assert.ok(backBtn, '#btn-banner-back button must exist');
+
+        // Click Back: Modal hides
+        await backBtn.click();
+        const isModalClosed = await bannerModal.isVisible();
+        assert.equal(isModalClosed, false, 'Back button must close banner modal and return to grid');
+
+        // Re-open and Click Start: Enters emulator view
+        await page.click('#channel-ssbm');
+        await startBtn.click();
+        const isEmuNowVisible = await emuViewport.isVisible();
+        assert.equal(isEmuNowVisible, true, 'Clicking Start button must enter emulator viewport');
+
     } finally {
         await browser.close();
         server.close();

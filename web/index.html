@@ -355,6 +355,126 @@
             background: #334155;
         }
         button.ui-btn-secondary:hover { background: #475569; }
+
+        /* ==========================================================================
+           Wii Channel Banner Modal (Zoom-in preview)
+           ========================================================================== */
+        #wii-banner-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .banner-card {
+            width: 90%;
+            max-width: 620px;
+            background: linear-gradient(180deg, #ffffff 0%, #eaf1f6 100%);
+            border: 3px solid #b5c5d1;
+            border-radius: 24px;
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(255, 255, 255, 0.8),
+                inset 0 2px 4px #ffffff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: wiiZoomIn 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.25) forwards;
+            position: relative;
+        }
+
+        @keyframes wiiZoomIn {
+            from { transform: scale(0.65); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .banner-screen {
+            height: 240px;
+            background: radial-gradient(circle at 50% 40%, #ffffff 0%, #dde6ee 70%, #cbd6e2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-bottom: 2px solid #b5c5d1;
+            overflow: hidden;
+        }
+
+        .banner-screen::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .banner-icon {
+            font-size: 3.5rem;
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+            margin-bottom: 0.75rem;
+        }
+
+        #banner-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #1e293b;
+            text-align: center;
+            padding: 0 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .banner-actions {
+            height: 80px;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2.5rem;
+        }
+
+        .pill-btn {
+            min-width: 140px;
+            height: 48px;
+            border-radius: 9999px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+
+        .pill-btn-back {
+            background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+            border: 2px solid #94a3b8;
+            color: #475569;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 1px 1px #fff;
+        }
+        .pill-btn-back:hover, .pill-btn-back:focus-visible {
+            transform: scale(1.06);
+            border-color: #0284c7;
+            color: #0284c7;
+            box-shadow: 0 6px 14px rgba(2, 132, 199, 0.25);
+        }
+
+        .pill-btn-start {
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+            border: 2px solid #0369a1;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1px 2px rgba(255,255,255,0.7);
+        }
+        .pill-btn-start:hover, .pill-btn-start:focus-visible {
+            transform: scale(1.06);
+            background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 100%);
+            box-shadow: 0 8px 20px rgba(2, 132, 199, 0.45);
+        }
     </style>
 </head>
 <body>
@@ -468,6 +588,21 @@
             </footer>
         </main>
 
+        <!-- Wii Channel Banner Modal (Zoom-in preview) -->
+        <div id="wii-banner-modal" role="dialog" aria-modal="true" aria-labelledby="banner-title">
+            <div class="banner-card">
+                <div class="banner-screen">
+                    <span id="banner-icon" class="banner-icon">⚔️</span>
+                    <div id="banner-title">Super Smash Bros. Melee</div>
+                    <span id="banner-badge" class="game-badge badge-gc" style="top: 14px; right: 18px;">GC</span>
+                </div>
+                <div class="banner-actions">
+                    <button id="btn-banner-back" class="pill-btn pill-btn-back" tabindex="0">Wii Menu</button>
+                    <button id="btn-start-game" class="pill-btn pill-btn-start" tabindex="0">Start</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Emulator Viewport (Activated when game starts) -->
         <div id="viewport-wrapper">
             <canvas id="emulator-canvas" width="640" height="480"></canvas>
@@ -504,6 +639,55 @@
         const btnFullscreen = document.getElementById('btn-fullscreen');
         const clockTime = document.getElementById('clock-time');
         const clockDate = document.getElementById('clock-date');
+
+        // Banner Modal Elements
+        const bannerModal = document.getElementById('wii-banner-modal');
+        const bannerTitle = document.getElementById('banner-title');
+        const bannerIcon = document.getElementById('banner-icon');
+        const bannerBadge = document.getElementById('banner-badge');
+        const btnBannerBack = document.getElementById('btn-banner-back');
+        const btnStartGame = document.getElementById('btn-start-game');
+        const channelSlots = Array.from(document.querySelectorAll('.channel-slot'));
+
+        let selectedGameId = null;
+        let selectedGameTitle = null;
+
+        function openBanner(slot) {
+            selectedGameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
+            if (!selectedGameId) return;
+
+            selectedGameTitle = slot.querySelector('.channel-title')?.textContent.trim() || selectedGameId;
+            const icon = slot.querySelector('.game-art')?.textContent || (slot.id === 'disc-channel' ? '💿' : '🎮');
+            const badge = slot.querySelector('.game-badge');
+
+            bannerTitle.textContent = selectedGameTitle;
+            bannerIcon.textContent = icon;
+            if (badge) {
+                bannerBadge.textContent = badge.textContent;
+                bannerBadge.className = badge.className;
+                bannerBadge.style.display = 'block';
+            } else {
+                bannerBadge.style.display = 'none';
+            }
+
+            bannerModal.style.display = 'flex';
+            soundEngine.playSelect();
+            btnStartGame.focus();
+        }
+
+        function closeBanner() {
+            if (bannerModal.style.display === 'flex') {
+                bannerModal.style.display = 'none';
+                soundEngine.playCancel();
+            }
+        }
+
+        btnBannerBack.onclick = closeBanner;
+        btnStartGame.onclick = () => {
+            bannerModal.style.display = 'none';
+            soundEngine.playSelect();
+            launchGame(selectedGameId, selectedGameTitle);
+        };
 
         // Update real-time clock
         function updateClock() {
@@ -549,9 +733,18 @@
 
         // Gamepad API input listener & Wii menu navigation
         const gamepadNav = createGamepadNavigation({
-            getElements: () => channelSlots,
+            getElements: () => {
+                if (bannerModal.style.display === 'flex') {
+                    return [btnBannerBack, btnStartGame];
+                }
+                return channelSlots;
+            },
+            cols: bannerModal.style.display === 'flex' ? 2 : 4,
+            rows: bannerModal.style.display === 'flex' ? 1 : 3,
             onCancel: () => {
-                if (emuViewport.style.display === 'flex') {
+                if (bannerModal.style.display === 'flex') {
+                    closeBanner();
+                } else if (emuViewport.style.display === 'flex') {
                     soundEngine.playCancel();
                     emuViewport.style.display = 'none';
                 }
@@ -595,9 +788,19 @@
             emuViewport.style.display = 'none';
         };
 
-        // Keyboard grid navigation (4 columns x 3 rows)
-        const channelSlots = Array.from(document.querySelectorAll('.channel-slot'));
+        // Keyboard navigation (Grid & Modal)
         window.addEventListener('keydown', (e) => {
+            if (bannerModal.style.display === 'flex') {
+                if (e.key === 'Escape') {
+                    closeBanner();
+                } else if (e.key === 'ArrowLeft') {
+                    btnBannerBack.focus();
+                } else if (e.key === 'ArrowRight') {
+                    btnStartGame.focus();
+                }
+                return;
+            }
+
             const activeIdx = channelSlots.indexOf(document.activeElement);
             if (activeIdx < 0) return;
 
@@ -688,9 +891,7 @@
             slot.addEventListener('click', () => {
                 const gameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
                 if (gameId) {
-                    soundEngine.playSelect();
-                    const title = slot.querySelector('.channel-title')?.textContent.trim() || gameId;
-                    launchGame(gameId, title);
+                    openBanner(slot);
                 }
             });
             slot.addEventListener('keydown', (e) => {
