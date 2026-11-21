@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test:ui": "node --test web/ui.test.mjs"
+    "test:ui": "node --test web/ui.test.mjs",
+    "test:disc": "node --test web/disc_reader.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.65.1"

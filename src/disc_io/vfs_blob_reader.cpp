@@ -1,7 +1,7 @@
 #include "vfs_blob_reader.h"
 #include <iostream>
 
-#ifndef _Atomic
+#if !defined(__clang__) && !defined(_Atomic)
 #define _Atomic
 #endif
 #ifndef _Static_assert
@@ -20,19 +20,24 @@ std::unique_ptr<VfsBlobReader> VfsBlobReader::Create(VfsFs* fs, const std::strin
 
     uint64_t size = 0;
     int32_t statRc = vfs_fs_stat(fs, path.c_str(), &size);
-    if (statRc != VFS_FS_OK) {
-        std::cerr << "[VfsBlobReader] stat failed on " << path << ": " << statRc << std::endl;
-        return nullptr;
+    if (statRc == VFS_FS_OK) {
+        uint32_t fd = 0;
+        int32_t openRc = vfs_fs_open(fs, path.c_str(), &fd);
+        if (openRc == VFS_FS_OK) {
+            return std::make_unique<VfsBlobReader>(fs, fd, size);
+        }
     }
 
-    uint32_t fd = 0;
-    int32_t openRc = vfs_fs_open(fs, path.c_str(), &fd);
-    if (openRc != VFS_FS_OK) {
-        std::cerr << "[VfsBlobReader] open failed on " << path << ": " << openRc << std::endl;
-        return nullptr;
+    // shortcut: Fallback for raw ISO streams where TOC is absent (fs unmounted or raw ISO pack),
+    // upgrade when all ISOs are packaged in VFSI directory packs.
+    if (fs->ctx) {
+        uint64_t archiveSize = vfs_archive_byte_size(fs->ctx);
+        if (archiveSize > 0) {
+            return std::make_unique<VfsBlobReader>(fs, 0, archiveSize);
+        }
     }
 
-    return std::make_unique<VfsBlobReader>(fs, fd, size);
+    return nullptr;
 }
 
 VfsBlobReader::VfsBlobReader(VfsFs* fs, uint32_t fd, uint64_t discSize)
@@ -56,13 +61,28 @@ bool VfsBlobReader::Read(uint64_t offset, uint64_t size, uint8_t* out_ptr) {
     if (size == 0) return true;
     if (offset >= m_size || offset + size > m_size) return false;
 
-    int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, size);
-    return bytesRead == static_cast<int64_t>(size);
+    if (m_fd != 0) {
+        int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, size);
+        return bytesRead == static_cast<int64_t>(size);
+    } else if (m_fs && m_fs->ctx) {
+        ptrdiff_t bytesRead = vfs_read_sync(m_fs->ctx, offset, out_ptr, size);
+        return bytesRead == static_cast<ptrdiff_t>(size);
+    }
+    return false;
 }
 
 void VfsBlobReader::HintCold(uint64_t offset, uint64_t size) {
-    if (!m_fs || !m_fd || size == 0) return;
-    vfs_fs_hint_cold(m_fs, m_fd, offset, size, VFS_FS_HINT_INTERIOR_ONLY);
+    if (!m_fs || size == 0) return;
+    if (m_fd != 0) {
+        vfs_fs_hint_cold(m_fs, m_fd, offset, size, VFS_FS_HINT_INTERIOR_ONLY);
+    } else if (m_fs->ctx) {
+        uint32_t shift = vfs_block_shift(m_fs->ctx);
+        uint32_t first_block = static_cast<uint32_t>(offset >> shift);
+        uint32_t last_block = static_cast<uint32_t>((offset + size - 1) >> shift);
+        for (uint32_t b = first_block; b <= last_block; ++b) {
+            vfs_hint_cold(m_fs->ctx, b);
+        }
+    }
 }
 
 } // namespace DiscIO
