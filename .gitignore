@@ -8,6 +8,7 @@ disc_io_test
 *.wasm
 
 # Node & package dependencies
+node_modules
 node_modules/
 
 # Test & distribution artifacts
