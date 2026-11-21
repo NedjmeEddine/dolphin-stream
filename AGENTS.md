@@ -35,19 +35,22 @@ npm run test:disc
 # 3. Wii UI Playwright layout & transition tests
 npm run test:ui
 
-# 4. Web Audio & Gamepad navigation unit tests
+# 4. Viewport presentation, aspect ratio toggle, & live HUD test (Playwright)
+npm run test:viewport
+
+# 5. Web Audio & Gamepad navigation unit tests
 node --test web/wii_audio.test.mjs web/wii_input.test.mjs
 
-# 5. Go backend & catalog tests (with race detector)
+# 6. Go backend & catalog tests (with race detector)
 cd externals/vfs-streamer && go test -count=1 -race ./...
 
-# 6. C11 VFS multi-threading suite (with ThreadSanitizer)
+# 7. C11 VFS multi-threading suite (with ThreadSanitizer)
 make -C externals/vfs-streamer/client/vfs test
 
-# 7. JavaScript worker core & WebGPU scheduler tests
+# 8. JavaScript worker core & WebGPU scheduler tests
 cd externals/vfs-streamer && node --test client/web/worker_b_core.test.mjs client/web/webgpu_streamer_core.test.mjs
 
-# 8. Rebuild WebAssembly binary module (vfs.js + vfs.wasm)
+# 9. Rebuild WebAssembly binary module (vfs.js + vfs.wasm)
 make wasm
 ```
 

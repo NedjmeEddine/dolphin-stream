@@ -150,18 +150,21 @@ npm run test:disc
 # 3. Wii Channel Grid & Modal UI Tests (Playwright)
 npm run test:ui
 
-# 4. Web Audio Synthesizer & Gamepad Loop Unit Tests
+# 4. Viewport Presentation, Aspect Ratio Toggle, & Live HUD Tests (Playwright)
+npm run test:viewport
+
+# 5. Web Audio Synthesizer & Gamepad Loop Unit Tests
 node --test web/wii_audio.test.mjs web/wii_input.test.mjs
 
-# 5. Go Range Server & Multi-Game Catalog Tests (with race detector)
+# 6. Go Range Server & Multi-Game Catalog Tests (with race detector)
 cd externals/vfs-streamer && go test -count=1 -race ./...
 
-# 6. C11 VFS Multi-Threading & Dekker Memory Ordering Suite (with TSan)
+# 7. C11 VFS Multi-Threading & Dekker Memory Ordering Suite (with TSan)
 make -C externals/vfs-streamer/client/vfs test
 
-# 7. JavaScript Worker Core & WebGPU Scheduler Tests
+# 8. JavaScript Worker Core & WebGPU Scheduler Tests
 cd externals/vfs-streamer && node --test client/web/worker_b_core.test.mjs client/web/webgpu_streamer_core.test.mjs
 
-# 8. Rebuild WebAssembly Module (vfs.js + vfs.wasm)
+# 9. Rebuild WebAssembly Module (vfs.js + vfs.wasm)
 source ~/.local/share/emsdk/emsdk_env.sh && make wasm
 ```

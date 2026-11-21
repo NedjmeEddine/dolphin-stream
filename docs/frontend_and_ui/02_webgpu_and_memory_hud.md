@@ -64,6 +64,47 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
 * **Zero-copy texture updates:** Uploads frames using `device.queue.copyExternalImageToTexture()`.
 * **Hardware Aspect Ratio Scaling:** Supports switching between standard 4:3 (original CRT) and 16:9 widescreen with linear texture filtering.
 
+### Dual-Layer Aspect Ratio Scaling (`web/index.html`)
+
+A common mistake in browser emulator frontends is updating only CSS `style.width` and `style.height` while leaving the canvas drawing buffer locked at 640x480. In 16:9 widescreen mode, this results in non-uniform bilinear stretching of a 4:3 buffer.
+
+DolphinStream separates scaling into two distinct layers (`web/index.html:resize`):
+1. **CSS Presentation Layer:** Computes letterboxing/pillarboxing to fit the parent container while strictly enforcing `targetW / targetH == aspect` (4:3 $\approx 1.333$ or 16:9 $\approx 1.777$).
+2. **Hardware Swapchain Layer:** Updates internal canvas buffer dimensions (`emuCanvas.width` and `emuCanvas.height`) via `gpuRenderer.resize(targetW, targetH)` or setting 854x480 (16:9) / 640x480 (4:3), ensuring the GPU swapchain texture renders native anamorphic pixels.
+
+### Canvas Context Exclusivity & Safe WebGPU Fallback Sequencing
+
+An HTML `<canvas>` element can acquire only **one** rendering context type (`webgpu` or `2d`) during its DOM lifetime.
+
+#### The Context Lock Trap
+If code invokes `canvas.getContext('webgpu')` before verifying whether the hardware adapter and device can actually be acquired, and `device.requestDevice()` subsequently fails (e.g., driver crash or unsupported GPU flags), any subsequent attempt to fall back to `canvas.getContext('2d')` returns `null` or throws `InvalidStateError`.
+
+#### The Safe Fallback Pattern (`web/index.html`)
+To guarantee graceful degradation on devices lacking WebGPU or running headless in CI:
+```javascript
+async function setupRenderer() {
+    try {
+        if (!gpuRenderer) {
+            const res = await initWebGpuRenderer(emuCanvas);
+            if (res && res.supported) {
+                gpuRenderer = res;
+            } else {
+                gpuRenderer = createMockGpuRenderer(emuCanvas);
+            }
+        }
+        if (gpuRenderer) {
+            gpuRenderer.renderFrame([{ dstRect: [0, 0, 1, 1], uvRect: [0, 0, 1, 1], tint: [1, 1, 1, 1] }]);
+        }
+        return gpuRenderer;
+    } catch (err) {
+        console.warn('WebGPU renderer setup failed, falling back to 2D mock:', err);
+        gpuRenderer = createMockGpuRenderer(emuCanvas);
+        return gpuRenderer;
+    }
+}
+```
+`initWebGpuRenderer` acquires the `GPUAdapter` and `GPUDevice` *before* requesting `canvas.getContext('webgpu')`. If device acquisition fails, `getContext('webgpu')` is never invoked, leaving the canvas free to initialize a standard 2D canvas context.
+
 ---
 
 ## 2. Real-Time 2D Memory HUD Overlay (`hud_overlay.mjs`)
