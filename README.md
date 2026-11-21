@@ -90,6 +90,28 @@ go build -o bin/streamer-server externals/vfs-streamer/cmd/streamer-server
 
 Open `http://127.0.0.1:8080/` in Chromium or Firefox with WebGPU enabled.
 
+### 4. Running the Verification Suites
+
+```bash
+# 1. Full Multi-Game End-to-End Streaming & Boot Verification (Playwright)
+npm run test:e2e
+
+# 2. Viewport Presentation, Aspect Ratio Toggle, & Live HUD Test (Playwright)
+npm run test:viewport
+
+# 3. Wii Channel Grid Layout & Transition Tests (Playwright)
+npm run test:ui
+
+# 4. Worker A DiscIO Sector Reader Test (Playwright)
+npm run test:disc
+
+# 5. Root DiscIO C++ Adapter Tests
+make test
+
+# 6. Web Audio Synthesizer & Gamepad Navigation Unit Tests
+node --test web/wii_audio.test.mjs web/wii_input.test.mjs
+```
+
 ---
 
 ## 📁 Repository Structure
@@ -101,10 +123,20 @@ dolphin-stream/
 ├── src/
 │   └── disc_io/
 │       ├── vfs_blob_reader.h   # C++ adapter for Dolphin's DiscIO::BlobReader
-│       └── vfs_blob_reader.cpp # Zero-allocation synchronous read implementation
+│       ├── vfs_blob_reader.cpp # Zero-allocation synchronous read implementation
+│       ├── disc_header.h       # Boot sector magic (0xC2339F3D / 0x5D1C9EA3) parser
+│       ├── disc_header.cpp     # Platform detection & GameID extraction
+│       └── disc_io_test.cpp    # Native DiscIO unit verification suite
 ├── web/
-│   └── index.html           # WebGPU viewport, Gamepad API, and live memory HUD
+│   ├── index.html           # Wii Channel Grid, WebGPU viewport, and memory HUD
+│   ├── wii_audio.js         # Zero-asset procedural Web Audio synthesizer
+│   ├── wii_input.js         # Gamepad API navigation loop with analog deadzone
+│   ├── emu_viewport.test.mjs# Viewport and aspect ratio Playwright test
+│   └── multi_game_e2e.test.mjs # Full multi-game capstone E2E Playwright test
+├── scripts/
+│   └── gen_mock_games.mjs   # Mock GameCube and Wii disc generator & slicer
 ├── CMakeLists.txt           # Emscripten C++20 build definition
+├── Makefile                 # Emscripten multi-pass build & native test runner
 └── README.md
 ```
 

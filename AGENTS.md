@@ -26,31 +26,34 @@ DolphinStream is an out-of-core WebAssembly GameCube & Wii streaming runtime (Do
 Run focused test suites depending on the layer being modified:
 
 ```bash
-# 1. Root DiscIO C++ tests (BlobReader, C ABI, Boot Sector Parser)
-make test
+# 1. Full Multi-Game End-to-End Streaming & Boot Verification (Playwright)
+npm run test:e2e
 
-# 2. Worker A DiscIO sector reader integration test (Playwright)
-npm run test:disc
+# 2. Viewport presentation, aspect ratio toggle, & live HUD test (Playwright)
+npm run test:viewport
 
 # 3. Wii UI Playwright layout & transition tests
 npm run test:ui
 
-# 4. Viewport presentation, aspect ratio toggle, & live HUD test (Playwright)
-npm run test:viewport
+# 4. Worker A DiscIO sector reader integration test (Playwright)
+npm run test:disc
 
-# 5. Web Audio & Gamepad navigation unit tests
+# 5. Root DiscIO C++ tests (BlobReader, C ABI, Boot Sector Parser)
+make test
+
+# 6. Web Audio & Gamepad navigation unit tests
 node --test web/wii_audio.test.mjs web/wii_input.test.mjs
 
-# 6. Go backend & catalog tests (with race detector)
+# 7. Go backend & catalog tests (with race detector)
 cd externals/vfs-streamer && go test -count=1 -race ./...
 
-# 7. C11 VFS multi-threading suite (with ThreadSanitizer)
+# 8. C11 VFS multi-threading suite (with ThreadSanitizer)
 make -C externals/vfs-streamer/client/vfs test
 
-# 8. JavaScript worker core & WebGPU scheduler tests
+# 9. JavaScript worker core & WebGPU scheduler tests
 cd externals/vfs-streamer && node --test client/web/worker_b_core.test.mjs client/web/webgpu_streamer_core.test.mjs
 
-# 9. Rebuild WebAssembly binary module (vfs.js + vfs.wasm)
+# 10. Rebuild WebAssembly binary module (vfs.js + vfs.wasm)
 make wasm
 ```
 
