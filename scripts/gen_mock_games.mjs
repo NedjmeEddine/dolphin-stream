@@ -9,6 +9,12 @@ const binMarkovPack = path.join(rootDir, 'bin', 'markov-pack');
 const distDir = path.join(rootDir, 'dist');
 const tmpDir = path.join(rootDir, '.tmp_isos');
 
+if (!fs.existsSync(binMarkovPack)) {
+    console.error(`[gen_mock_games] ERROR: markov-pack binary not found at ${binMarkovPack}.`);
+    console.error('Please build it via: cd externals/vfs-streamer && go build -o ../../bin/markov-pack ./cmd/markov-pack');
+    process.exit(1);
+}
+
 fs.mkdirSync(distDir, { recursive: true });
 fs.mkdirSync(tmpDir, { recursive: true });
 

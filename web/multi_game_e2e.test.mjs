@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -15,6 +15,12 @@ const CHROME_PATH = process.env.PLAYWRIGHT_CHROME_PATH ||
     path.join(process.env.HOME, '.cache/ms-playwright/chromium-1255/chrome-linux64/chrome');
 
 test('5.0: Full Capstone Multi-Game End-to-End Streaming & Platform Identification', async (t) => {
+    // 0. Ensure multi-game packs and dist/games.json exist
+    const catalogPath = path.join(rootDir, 'dist', 'games.json');
+    if (!fs.existsSync(catalogPath)) {
+        execFileSync(process.execPath, [path.join(rootDir, 'scripts', 'gen_mock_games.mjs')], { stdio: 'inherit' });
+    }
+
     // 1. Find a free port for streamer-server
     const srv = http.createServer();
     await new Promise(r => srv.listen(0, '127.0.0.1', r));
@@ -28,9 +34,13 @@ test('5.0: Full Capstone Multi-Game End-to-End Streaming & Platform Identificati
         '-addr', serverAddr
     ], { stdio: 'pipe' });
 
-    // Wait for server to start listening
+    // Wait for server to start listening (with fast exit on premature crash)
     await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Timeout waiting for streamer-server to start')), 8000);
+        serverProc.on('exit', (code) => {
+            clearTimeout(timeout);
+            reject(new Error(`streamer-server exited prematurely with code ${code}`));
+        });
         serverProc.stdout.on('data', (d) => {
             if (d.toString().includes('streamer-server listening')) {
                 clearTimeout(timeout);
