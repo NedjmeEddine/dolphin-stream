@@ -1333,48 +1333,30 @@
             if (workerB) { workerB.terminate(); workerB = null; }
 
             const channel = new MessageChannel();
-            workerA = new Worker('worker_a.js', { type: 'module' });
+            workerA = new Worker('emu_worker.js', { type: 'module' });
             workerB = new Worker('worker_b.js', { type: 'module' });
 
-            let discSize = 0;
-
-            function streamBootSectors() {
-                let nextOffset = 0n;
-                const chunkLen = 65536; // 64 KB optical chunk
-                const maxBootBytes = BigInt(Math.min(discSize || 1048576, 4194304)); // Stream first 4 MB of disc
-
-                function readNext() {
-                    if (nextOffset < maxBootBytes && emuViewport.style.display === 'flex' && workerA) {
-                        workerA.postMessage({ type: 'DISC_READ', offset: nextOffset, len: chunkLen, id: 100 });
-                        nextOffset += BigInt(chunkLen);
-                        bootStreamTimer = setTimeout(readNext, 60);
-                    }
-                }
-                readNext();
-            }
-
             workerA.onmessage = (e) => {
-                const { type, ok, size, platform: discPlatform, gameId: discGameId, gameTitle: discTitle } = e.data || {};
-                if (type === 'DISC_OPEN_RES') {
-                    if (ok) {
-                        discSize = Number(size) || 0;
-                        workerA.postMessage({ type: 'DISC_IDENTIFY', id: 2 });
+                const { type, ok, title: emuTitle, width, height, buffer } = e.data || {};
+                if (type === 'EMU_BOOTED') {
+                    if (badgeIso) {
+                        badgeIso.textContent = ok ? "Running" : "Boot Failed";
+                        badgeIso.className = ok ? "badge ok" : "badge warn";
                     }
-                } else if (type === 'DISC_IDENTIFY_RES') {
-                    if (ok && discGameId) {
-                        console.log(`[DiscIO] Boot sector identified: ${discTitle} [${discGameId}] (${discPlatform})`);
-                        if (emuGameLabel) {
-                            emuGameLabel.textContent = `${discTitle} [${discGameId}] (${discPlatform === 'wii' ? 'Wii' : 'GameCube'})`;
+                    if (emuGameLabel && (emuTitle || gameTitle)) {
+                        emuGameLabel.textContent = `${emuTitle || gameTitle} (${platform === 'wii' ? 'Wii' : 'GameCube'})`;
+                    }
+                } else if (type === 'EMU_FRAME') {
+                    if (width && height && buffer) {
+                        if (emuCanvas.width !== width || emuCanvas.height !== height) {
+                            emuCanvas.width = width;
+                            emuCanvas.height = height;
                         }
-                        if (badgeIso) {
-                            badgeIso.textContent = `${discGameId} (${discPlatform.toUpperCase()})`;
-                            badgeIso.className = "badge ok";
+                        const ctx = emuCanvas.getContext('2d');
+                        if (ctx) {
+                            const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
+                            ctx.putImageData(img, 0, 0);
                         }
-                        currentAspect = discPlatform === 'wii' ? '16:9' : '4:3';
-                        if (btnAspectRatio) btnAspectRatio.textContent = currentAspect;
-                        resize();
-                        renderGameSplash(discTitle, discGameId, discPlatform);
-                        streamBootSectors();
                     }
                 }
             };
@@ -1398,7 +1380,6 @@
                         badgeStream.textContent = `${effectivePoolMB} MB RAM Pool (${opfsMode})`;
                     }
                     workerB.postMessage({ type: 'ENABLE_HUD', enabled: true });
-                    workerA.postMessage({ type: 'DISC_OPEN', path: 'game.iso', id: 1 });
                 } else if (type === 'ERROR') {
                     console.error("Worker error:", reason);
                     if (badgeIso) {
@@ -1470,6 +1451,36 @@
                 emuViewport.requestFullscreen().catch(err => console.warn(err));
             } else {
                 document.exitFullscreen().catch(err => console.warn(err));
+            }
+        });
+
+        // GameCube controller keyboard input forwarding
+        const keyMap = {
+            'x': 1 << 0, 'X': 1 << 0, // A
+            'z': 1 << 1, 'Z': 1 << 1, // B
+            's': 1 << 2, 'S': 1 << 2, // X
+            'a': 1 << 3, 'A': 1 << 3, // Y
+            'Enter': 1 << 4,          // Start
+            'q': 1 << 5, 'Q': 1 << 5, // L
+            'e': 1 << 6, 'E': 1 << 6, // R
+            'c': 1 << 7, 'C': 1 << 7, // Z
+            'ArrowUp': 1 << 8,
+            'ArrowDown': 1 << 9,
+            'ArrowLeft': 1 << 10,
+            'ArrowRight': 1 << 11
+        };
+
+        let currentInputMask = 0;
+        window.addEventListener('keydown', (e) => {
+            if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+                currentInputMask |= keyMap[e.key];
+                if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+                currentInputMask &= ~keyMap[e.key];
+                if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
             }
         });
 

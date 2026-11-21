@@ -6,6 +6,7 @@ disc_io_test
 *.a
 *.so
 *.wasm
+!cores/dolphin/*.wasm
 
 # Node & package dependencies
 node_modules

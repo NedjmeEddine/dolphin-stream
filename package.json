@@ -6,6 +6,7 @@
     "test:ui": "node --test web/ui.test.mjs",
     "test:disc": "node --test web/disc_reader.test.mjs",
     "test:viewport": "node --test web/emu_viewport.test.mjs",
+    "test:core": "node --test web/emu_worker.test.mjs",
     "test:e2e": "node --test web/multi_game_e2e.test.mjs"
   },
   "devDependencies": {
