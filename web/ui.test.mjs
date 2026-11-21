@@ -100,6 +100,11 @@ test('2.1: 4x3 Wii Channel Grid Layout & DOM Structure', async (t) => {
         const isEmuVisible = await emuViewport.isVisible();
         assert.equal(isEmuVisible, false, 'Emulator viewport must be initially hidden while browsing channels');
 
+        // Test Arrow key on initial landing focuses first channel
+        await page.keyboard.press('ArrowRight');
+        const activeId = await page.evaluate(() => document.activeElement?.id);
+        assert.equal(activeId, 'disc-channel', 'Arrow key on un-focused landing must focus first channel (disc-channel)');
+
         // Test 2.4: Channel Zoom and Start Banner Modal
         await page.click('#channel-ssbm');
 
@@ -127,6 +132,11 @@ test('2.1: 4x3 Wii Channel Grid Layout & DOM Structure', async (t) => {
         await startBtn.click();
         const isEmuNowVisible = await emuViewport.isVisible();
         assert.equal(isEmuNowVisible, true, 'Clicking Start button must enter emulator viewport');
+
+        // Return back to Wii Menu
+        await page.click('#btn-return-menu');
+        const isEmuClosed = await emuViewport.isVisible();
+        assert.equal(isEmuClosed, false, 'Clicking Wii Menu button must return to channel grid');
 
     } finally {
         await browser.close();

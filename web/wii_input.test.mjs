@@ -19,9 +19,10 @@ test('2.3: Gamepad API Navigation Loop for Wii Grid', async (t) => {
         buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }))
     };
 
+    let activeElements = mockElements;
     let simulatedGamepads = [mockGamepad];
     const nav = createGamepadNavigation({
-        getElements: () => mockElements,
+        getElements: () => activeElements,
         getGamepads: () => simulatedGamepads,
         cols: 4,
         rows: 3,
@@ -61,4 +62,12 @@ test('2.3: Gamepad API Navigation Loop for Wii Grid', async (t) => {
     mockGamepad.buttons[1].pressed = true;
     nav.poll(750);
     assert.equal(canceled, true, 'B button should trigger cancel/return');
+    mockGamepad.buttons[1].pressed = false;
+
+    // Step 5: Element list shrinks (e.g. entering a 2-button modal from slot 5)
+    activeElements = mockElements.slice(0, 2); // Only 2 buttons in modal
+    nav.setCurrentIndex(5); // Simulated state from slot 5
+    // Poll should clamp index to 0 without out-of-bounds error
+    nav.poll(950);
+    assert.equal(nav.getCurrentIndex(), 0, 'Index >= total must clamp to 0');
 });

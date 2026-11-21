@@ -651,11 +651,13 @@
 
         let selectedGameId = null;
         let selectedGameTitle = null;
+        let savedChannelIndex = 0;
 
         function openBanner(slot) {
             selectedGameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
             if (!selectedGameId) return;
 
+            savedChannelIndex = channelSlots.indexOf(slot);
             selectedGameTitle = slot.querySelector('.channel-title')?.textContent.trim() || selectedGameId;
             const icon = slot.querySelector('.game-art')?.textContent || (slot.id === 'disc-channel' ? '💿' : '🎮');
             const badge = slot.querySelector('.game-badge');
@@ -672,6 +674,7 @@
 
             bannerModal.style.display = 'flex';
             soundEngine.playSelect();
+            if (gamepadNav) gamepadNav.setCurrentIndex(1);
             btnStartGame.focus();
         }
 
@@ -679,6 +682,10 @@
             if (bannerModal.style.display === 'flex') {
                 bannerModal.style.display = 'none';
                 soundEngine.playCancel();
+                if (gamepadNav && savedChannelIndex >= 0) {
+                    gamepadNav.setCurrentIndex(savedChannelIndex);
+                    if (channelSlots[savedChannelIndex]) channelSlots[savedChannelIndex].focus();
+                }
             }
         }
 
@@ -739,8 +746,8 @@
                 }
                 return channelSlots;
             },
-            cols: bannerModal.style.display === 'flex' ? 2 : 4,
-            rows: bannerModal.style.display === 'flex' ? 1 : 3,
+            cols: () => (bannerModal.style.display === 'flex' ? 2 : 4),
+            rows: () => (bannerModal.style.display === 'flex' ? 1 : 3),
             onCancel: () => {
                 if (bannerModal.style.display === 'flex') {
                     closeBanner();
@@ -802,7 +809,13 @@
             }
 
             const activeIdx = channelSlots.indexOf(document.activeElement);
-            if (activeIdx < 0) return;
+            if (activeIdx < 0) {
+                if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+                    e.preventDefault();
+                    channelSlots[0].focus();
+                }
+                return;
+            }
 
             let nextIdx = activeIdx;
             if (e.key === 'ArrowRight') {
@@ -833,10 +846,13 @@
             emuViewport.style.display = 'flex';
             resize();
 
-            if (!workerA || !workerB) {
-                const channel = new MessageChannel();
-                workerA = new Worker('worker_a.js', { type: 'module' });
-                workerB = new Worker('worker_b.js', { type: 'module' });
+            // Terminate previous session workers if switching games
+            if (workerA) { workerA.terminate(); workerA = null; }
+            if (workerB) { workerB.terminate(); workerB = null; }
+
+            const channel = new MessageChannel();
+            workerA = new Worker('worker_a.js', { type: 'module' });
+            workerB = new Worker('worker_b.js', { type: 'module' });
 
                 workerA.postMessage({ type: 'PORT', port: channel.port1 }, [channel.port1]);
                 workerB.postMessage({ type: 'PORT', port: channel.port2 }, [channel.port2]);
@@ -869,7 +885,6 @@
                 const flushTelem = (r) => workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r });
                 document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
                 window.addEventListener('pagehide', () => flushTelem('pagehide'));
-            }
         }
 
         // Attach selection & hover sound listeners to channel slots

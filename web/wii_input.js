@@ -3,8 +3,8 @@
 export function createGamepadNavigation(options = {}) {
     const getElements = options.getElements || (() => []);
     const getGamepads = options.getGamepads || (() => (typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : []));
-    const cols = options.cols || 4;
-    const rows = options.rows || 3;
+    const getCols = typeof options.cols === 'function' ? options.cols : () => (options.cols || 4);
+    const getRows = typeof options.rows === 'function' ? options.rows : () => (options.rows || 3);
     const debounceMs = options.debounceMs || 180;
     const deadzone = options.deadzone || 0.45;
     const onCancel = options.onCancel || (() => {});
@@ -32,7 +32,14 @@ export function createGamepadNavigation(options = {}) {
 
         if (!gp) return;
 
-        const total = Math.min(elements.length, cols * rows);
+        const numCols = getCols();
+        const numRows = getRows();
+        const total = Math.min(elements.length, numCols * numRows);
+
+        // Clamp currentIndex if elements list changed
+        if (currentIndex >= total) {
+            currentIndex = 0;
+        }
 
         // Buttons: 0 = A, 1 = B, 12 = Up, 13 = Down, 14 = Left, 15 = Right
         const btn = (idx) => gp.buttons[idx] && (gp.buttons[idx].pressed || gp.buttons[idx].value > 0.5);
@@ -51,14 +58,14 @@ export function createGamepadNavigation(options = {}) {
 
         if ((dx !== 0 || dy !== 0) && (lastMoveTime === 0 || now - lastMoveTime >= debounceMs)) {
             let nextIndex = currentIndex;
-            const curRow = Math.floor(currentIndex / cols);
-            const curCol = currentIndex % cols;
+            const curRow = Math.floor(currentIndex / numCols);
+            const curCol = currentIndex % numCols;
 
-            if (dx === 1 && curCol < cols - 1) nextIndex += 1;
+            if (dx === 1 && curCol < numCols - 1) nextIndex += 1;
             else if (dx === -1 && curCol > 0) nextIndex -= 1;
 
-            if (dy === 1 && curRow < rows - 1) nextIndex += cols;
-            else if (dy === -1 && curRow > 0) nextIndex -= cols;
+            if (dy === 1 && curRow < numRows - 1) nextIndex += numCols;
+            else if (dy === -1 && curRow > 0) nextIndex -= numCols;
 
             if (nextIndex >= 0 && nextIndex < total && nextIndex !== currentIndex) {
                 currentIndex = nextIndex;
@@ -89,9 +96,9 @@ export function createGamepadNavigation(options = {}) {
         prevB = isBPressed;
     }
 
-    function loop() {
+    function loop(time) {
         if (!running) return;
-        poll();
+        poll(time);
         if (typeof requestAnimationFrame !== 'undefined') {
             rafId = requestAnimationFrame(loop);
         }
