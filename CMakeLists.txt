@@ -38,7 +38,7 @@ if(EMSCRIPTEN)
         -Wno-deprecated
     )
 
-    set(VFS_EXPORTED_FUNCTIONS "[\"_vfs_init_arena\",\"_vfs_attach_arena\",\"_vfs_read_sync\",\"_vfs_hint_cold\",\"_vfs_save_write_sync\",\"_vfs_save_read_sync\",\"_vfs_fs_mount\",\"_vfs_fs_unmount\",\"_vfs_fs_stat\",\"_vfs_fs_open\",\"_vfs_fs_read\",\"_vfs_fs_pread\",\"_vfs_fs_seek\",\"_vfs_fs_tell\",\"_vfs_fs_close\",\"_vfs_fs_hint_cold\",\"_aligned_alloc\",\"_malloc\",\"_free\"]")
+    set(VFS_EXPORTED_FUNCTIONS "[\"_vfs_init_arena\",\"_vfs_attach_arena\",\"_vfs_read_sync\",\"_vfs_hint_cold\",\"_vfs_save_write_sync\",\"_vfs_save_read_sync\",\"_vfs_fs_mount\",\"_vfs_fs_unmount\",\"_vfs_fs_stat\",\"_vfs_fs_open\",\"_vfs_fs_read\",\"_vfs_fs_pread\",\"_vfs_fs_seek\",\"_vfs_fs_tell\",\"_vfs_fs_close\",\"_vfs_fs_hint_cold\",\"_vfs_blob_open\",\"_vfs_blob_read\",\"_vfs_blob_size\",\"_vfs_blob_block_size\",\"_vfs_blob_hint_cold\",\"_vfs_blob_close\",\"_aligned_alloc\",\"_malloc\",\"_free\"]")
 
     add_link_options(
         -pthread

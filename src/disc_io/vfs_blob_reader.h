@@ -66,4 +66,21 @@ private:
 
 } // namespace DiscIO
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct VfsBlobReaderOpaque VfsBlobReaderOpaque;
+
+VfsBlobReaderOpaque* vfs_blob_open(struct VfsFs* fs, const char* path);
+int32_t vfs_blob_read(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t size, uint8_t* out_ptr);
+uint64_t vfs_blob_size(const VfsBlobReaderOpaque* reader);
+uint64_t vfs_blob_block_size(const VfsBlobReaderOpaque* reader);
+void vfs_blob_hint_cold(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t size);
+void vfs_blob_close(VfsBlobReaderOpaque* reader);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // VFS_BLOB_READER_H

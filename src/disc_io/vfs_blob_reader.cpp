@@ -66,3 +66,42 @@ void VfsBlobReader::HintCold(uint64_t offset, uint64_t size) {
 }
 
 } // namespace DiscIO
+
+extern "C" {
+
+VfsBlobReaderOpaque* vfs_blob_open(struct VfsFs* fs, const char* path) {
+    if (!fs || !path) return nullptr;
+    auto reader = DiscIO::VfsBlobReader::Create(fs, path);
+    return reinterpret_cast<VfsBlobReaderOpaque*>(reader.release());
+}
+
+int32_t vfs_blob_read(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t size, uint8_t* out_ptr) {
+    if (!reader) return 0;
+    auto* r = reinterpret_cast<DiscIO::VfsBlobReader*>(reader);
+    return r->Read(offset, size, out_ptr) ? 1 : 0;
+}
+
+uint64_t vfs_blob_size(const VfsBlobReaderOpaque* reader) {
+    if (!reader) return 0;
+    const auto* r = reinterpret_cast<const DiscIO::VfsBlobReader*>(reader);
+    return r->GetDataSize();
+}
+
+uint64_t vfs_blob_block_size(const VfsBlobReaderOpaque* reader) {
+    if (!reader) return 0;
+    const auto* r = reinterpret_cast<const DiscIO::VfsBlobReader*>(reader);
+    return r->GetBlockSize();
+}
+
+void vfs_blob_hint_cold(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t size) {
+    if (!reader) return;
+    auto* r = reinterpret_cast<DiscIO::VfsBlobReader*>(reader);
+    r->HintCold(offset, size);
+}
+
+void vfs_blob_close(VfsBlobReaderOpaque* reader) {
+    if (!reader) return;
+    delete reinterpret_cast<DiscIO::VfsBlobReader*>(reader);
+}
+
+} // extern "C"
