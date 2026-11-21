@@ -933,6 +933,7 @@
                     <span id="emu-game-label" style="color: #94a3b8; font-size: 0.8rem;">GameCube / Wii</span>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-aspect-ratio" class="ui-btn ui-btn-secondary" title="Toggle Aspect Ratio (4:3 / 16:9)">4:3</button>
                     <button id="btn-toggle-hud" class="ui-btn ui-btn-secondary">Toggle Memory HUD</button>
                     <button id="btn-return-menu" class="ui-btn ui-btn-secondary">Wii Menu</button>
                     <button id="btn-fullscreen" class="ui-btn">Fullscreen</button>
@@ -945,6 +946,7 @@
         import { createHudOverlay } from './hud_overlay.mjs';
         import { createWiiSoundEngine } from './wii_audio.js';
         import { createGamepadNavigation } from './wii_input.js';
+        import { initWebGpuRenderer, createMockGpuRenderer } from './webgpu_renderer.mjs';
 
         const soundEngine = createWiiSoundEngine();
 
@@ -954,6 +956,7 @@
         const badgeIso = document.getElementById('badge-iso');
         const badgeController = document.getElementById('badge-controller');
         const badgeStream = document.getElementById('badge-stream');
+        const btnAspectRatio = document.getElementById('btn-aspect-ratio');
         const btnToggleHud = document.getElementById('btn-toggle-hud');
         const btnReturnMenu = document.getElementById('btn-return-menu');
         const btnFullscreen = document.getElementById('btn-fullscreen');
@@ -1038,11 +1041,28 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Responsive Aspect-Ratio Canvas Resizer
+        // Responsive Aspect-Ratio Canvas Resizer & WebGPU Presentation
         let hud = null;
         let showHud = true;
         let latestHudSnapshot = null;
         let opfsMode = 'PERSISTENT';
+        let currentAspect = '4:3';
+        let gpuRenderer = null;
+
+        async function setupRenderer() {
+            if (!gpuRenderer) {
+                const res = await initWebGpuRenderer(emuCanvas);
+                if (res && res.supported) {
+                    gpuRenderer = res;
+                } else {
+                    gpuRenderer = createMockGpuRenderer(emuCanvas);
+                }
+            }
+            if (gpuRenderer) {
+                gpuRenderer.renderFrame([{ dstRect: [0, 0, 1, 1], uvRect: [0, 0, 1, 1], tint: [1, 1, 1, 1] }]);
+            }
+            return gpuRenderer;
+        }
 
         function resize() {
             const wrapper = emuViewport;
@@ -1050,7 +1070,7 @@
             const h = wrapper.clientHeight - 48; // controls bar height
             if (w <= 0 || h <= 0) return;
 
-            const aspect = 4 / 3;
+            const aspect = currentAspect === '16:9' ? (16 / 9) : (4 / 3);
             let targetW = w;
             let targetH = w / aspect;
             if (targetH > h) {
@@ -1241,6 +1261,7 @@
 
             emuViewport.style.display = 'flex';
             resize();
+            setupRenderer();
 
             // Terminate previous session workers if switching games
             if (workerA) { workerA.terminate(); workerA = null; }
@@ -1307,6 +1328,13 @@
         });
 
         // Viewport controls
+        btnAspectRatio?.addEventListener('click', () => {
+            currentAspect = currentAspect === '4:3' ? '16:9' : '4:3';
+            btnAspectRatio.textContent = currentAspect;
+            soundEngine.playSelect();
+            resize();
+        });
+
         btnToggleHud.addEventListener('click', () => {
             showHud = !showHud;
             if (!showHud && hud) {
