@@ -1142,6 +1142,39 @@
                 badgeIso.className = "badge warn";
             });
 
+        // Dynamic catalog loader with static channel fallback
+        fetch('/games.json')
+            .then(res => res.ok ? res.json() : null)
+            .then(cat => {
+                if (!cat || !cat.games) return;
+                cat.games.forEach((g, idx) => {
+                    const slot = channelSlots[idx + 1]; // slots 1..11
+                    if (!slot) return;
+                    slot.dataset.gameId = g.id;
+                    const titleEl = slot.querySelector('.channel-title');
+                    if (titleEl && g.title) titleEl.textContent = g.title;
+                    const badgeEl = slot.querySelector('.game-badge');
+                    if (badgeEl && g.platform) {
+                        badgeEl.textContent = g.platform === 'wii' ? 'WII' : 'GC';
+                        badgeEl.className = `game-badge ${g.platform === 'wii' ? 'badge-wii' : 'badge-gc'}`;
+                    }
+                    if (g.cover) {
+                        const prev = slot.querySelector('.channel-preview');
+                        if (prev) {
+                            let img = prev.querySelector('.channel-cover');
+                            if (!img) {
+                                img = document.createElement('img');
+                                img.className = 'channel-cover';
+                                prev.innerHTML = '';
+                                prev.appendChild(img);
+                            }
+                            img.src = g.cover;
+                        }
+                    }
+                });
+            })
+            .catch(() => {});
+
         // Keyboard navigation for 4x3 channel grid
         window.addEventListener('keydown', (e) => {
             if (bannerModal.style.display === 'flex') {
@@ -1201,8 +1234,8 @@
             workerA = new Worker('worker_a.js', { type: 'module' });
             workerB = new Worker('worker_b.js', { type: 'module' });
 
-            workerA.postMessage({ type: 'PORT', port: channel.port1 }, [channel.port1]);
-            workerB.postMessage({ type: 'PORT', port: channel.port2 }, [channel.port2]);
+            workerA.postMessage({ type: 'PORT', port: channel.port1, gameId }, [channel.port1]);
+            workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
 
             workerB.onmessage = (e) => {
                 const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
