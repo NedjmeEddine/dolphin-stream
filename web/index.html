@@ -1363,6 +1363,7 @@
 
             workerA.postMessage({ type: 'PORT', port: channel.port1, gameId }, [channel.port1]);
             workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
+            requestAnimationFrame(pollGameplayGamepad);
 
             workerB.onmessage = (e) => {
                 const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
@@ -1456,18 +1457,22 @@
 
         // GameCube controller keyboard input forwarding
         const keyMap = {
-            'x': 1 << 0, 'X': 1 << 0, // A
-            'z': 1 << 1, 'Z': 1 << 1, // B
-            's': 1 << 2, 'S': 1 << 2, // X
-            'a': 1 << 3, 'A': 1 << 3, // Y
-            'Enter': 1 << 4,          // Start
-            'q': 1 << 5, 'Q': 1 << 5, // L
-            'e': 1 << 6, 'E': 1 << 6, // R
-            'c': 1 << 7, 'C': 1 << 7, // Z
-            'ArrowUp': 1 << 8,
-            'ArrowDown': 1 << 9,
-            'ArrowLeft': 1 << 10,
-            'ArrowRight': 1 << 11
+            'x': 1 << 0, 'X': 1 << 0,   // A (Select / Jump / Accelerate)
+            'z': 1 << 1, 'Z': 1 << 1,   // B (Cancel / Attack / Brake)
+            'v': 1 << 2, 'V': 1 << 2,   // X
+            'b': 1 << 3, 'B': 1 << 3,   // Y
+            'Enter': 1 << 4,            // Start / Pause
+            'q': 1 << 5, 'Q': 1 << 5,   // L trigger
+            'e': 1 << 6, 'E': 1 << 6,   // R trigger
+            'c': 1 << 7, 'C': 1 << 7,   // Z button
+            'ArrowUp': 1 << 8,          // D-Pad Up
+            'ArrowDown': 1 << 9,        // D-Pad Down
+            'ArrowLeft': 1 << 10,       // D-Pad Left
+            'ArrowRight': 1 << 11,      // D-Pad Right
+            'w': 1 << 12, 'W': 1 << 12, // Main Stick Up
+            's': 1 << 13, 'S': 1 << 13, // Main Stick Down
+            'a': 1 << 14, 'A': 1 << 14, // Main Stick Left
+            'd': 1 << 15, 'D': 1 << 15  // Main Stick Right
         };
 
         let currentInputMask = 0;
@@ -1483,6 +1488,47 @@
                 if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
             }
         });
+
+        // Live Gamepad polling loop during emulation
+        function pollGameplayGamepad() {
+            if (emuViewport.style.display !== 'flex' || !workerA) return;
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            for (let i = 0; i < gamepads.length; i++) {
+                const gp = gamepads[i];
+                if (gp && gp.connected) {
+                    let gpMask = 0;
+                    if (gp.buttons[0]?.pressed) gpMask |= 1 << 0; // A
+                    if (gp.buttons[1]?.pressed) gpMask |= 1 << 1; // B
+                    if (gp.buttons[2]?.pressed) gpMask |= 1 << 2; // X
+                    if (gp.buttons[3]?.pressed) gpMask |= 1 << 3; // Y
+                    if (gp.buttons[9]?.pressed) gpMask |= 1 << 4; // Start
+                    if (gp.buttons[4]?.pressed || gp.buttons[6]?.pressed) gpMask |= 1 << 5; // L
+                    if (gp.buttons[5]?.pressed || gp.buttons[7]?.pressed) gpMask |= 1 << 6; // R
+                    if (gp.buttons[8]?.pressed) gpMask |= 1 << 7; // Z
+                    if (gp.buttons[12]?.pressed) gpMask |= 1 << 8; // D_UP
+                    if (gp.buttons[13]?.pressed) gpMask |= 1 << 9; // D_DOWN
+                    if (gp.buttons[14]?.pressed) gpMask |= 1 << 10; // D_LEFT
+                    if (gp.buttons[15]?.pressed) gpMask |= 1 << 11; // D_RIGHT
+
+                    const [ax0 = 0, ax1 = 0, ax2 = 0, ax3 = 0] = gp.axes;
+                    const stickX = Math.round(128 + ax0 * 96);
+                    const stickY = Math.round(128 - ax1 * 96);
+                    const cStickX = Math.round(128 + ax2 * 96);
+                    const cStickY = Math.round(128 - ax3 * 96);
+
+                    workerA.postMessage({
+                        type: 'INPUT',
+                        mask: currentInputMask | gpMask,
+                        stickX,
+                        stickY,
+                        cStickX,
+                        cStickY
+                    });
+                    break;
+                }
+            }
+            requestAnimationFrame(pollGameplayGamepad);
+        }
 
         console.log("DolphinStream Wii Home Screen initialized.");
     </script>
