@@ -3,6 +3,9 @@ import createDolphinCore from './cores/dolphin/dolphin-core-upstream.js';
 
 const SCRATCH_CAP = 4 * 1024 * 1024; // 4 MiB reusable read buffer
 let portB = null;
+let useWebGpu = false;
+let offscreenCanvas = null;
+let gpuDevice = null;
 let vfsModule = null;
 let vfsMemory = null;
 let ctxPtr = 0;
@@ -35,6 +38,8 @@ self.onmessage = async (e) => {
 
     if (type === 'PORT') {
         portB = msg.port;
+        useWebGpu = Boolean(msg.useWebGpu);
+        offscreenCanvas = msg.canvas || null;
         setupPortB();
         return;
     }
@@ -110,9 +115,30 @@ function setupPortB() {
                     arenaOffset: arenaPtr
                 });
 
+                // Initialize WebGPU if requested and supported
+                if (useWebGpu && typeof navigator !== 'undefined' && navigator.gpu) {
+                    try {
+                        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+                        if (adapter) {
+                            gpuDevice = await adapter.requestDevice();
+                            if (offscreenCanvas) {
+                                const gpuCtx = offscreenCanvas.getContext('webgpu');
+                                if (gpuCtx) {
+                                    const format = navigator.gpu.getPreferredCanvasFormat();
+                                    gpuCtx.configure({ device: gpuDevice, format, alphaMode: 'opaque' });
+                                }
+                            }
+                        }
+                    } catch (gpuErr) {
+                        console.warn('[emu_worker] WebGPU request failed, falling back to Software:', gpuErr);
+                        gpuDevice = null;
+                    }
+                }
+
                 // Initialize Dolphin Core
                 dolphinCore = await createDolphinCore({
                     locateFile: (p) => `./cores/dolphin/${p}`,
+                    preinitializedWebGPUDevice: gpuDevice || undefined,
                     print: (text) => console.log('[Dolphin]', text),
                     printErr: (text) => console.warn('[Dolphin Err]', text)
                 });
@@ -149,24 +175,19 @@ function setupPortB() {
                 node.usedBytes = discSize;
 
                 dolphinCore._SetCpuThread(0);
-                const swRendererPtr = cPath(dolphinCore, 'Software Renderer');
-                dolphinCore._SetVideoBackend(swRendererPtr);
-                dolphinCore._free(swRendererPtr);
+                const backendName = gpuDevice ? 'WebGPU-Real' : 'Software Renderer';
+                const backendPtr = cPath(dolphinCore, backendName);
+                dolphinCore._SetVideoBackend(backendPtr);
+                dolphinCore._free(backendPtr);
 
                 const cachedInterpPtr = cPath(dolphinCore, 'cached-interpreter');
                 dolphinCore._SetCpuCore(cachedInterpPtr);
                 dolphinCore._free(cachedInterpPtr);
 
                 // Maximum performance configuration for browser WASM:
-                // 1. Underclock virtual CPU to 0.5x (half instruction count per frame)
-                // 2. Unthrottle emulation speed (0.0 = unlimited / no sleep delays)
-                // 3. Fast 4x4 interpolated software rasterizer (fastsw=3)
-                // 4. Fast YUYV->RGBA XFB color conversion
-                // 5. Branchless specialized TEV combiners
-                // 6. PowerPC -> WASM JIT compiler
                 if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.5);
                 if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(0.0);
-                if (dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
+                if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
                 if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
 
@@ -186,7 +207,8 @@ function setupPortB() {
                     ok: bootRc === 1,
                     title: coreTitle,
                     status: coreStatus,
-                    discSize
+                    discSize,
+                    backend: gpuDevice ? 'WebGPU' : 'Software'
                 });
 
                 if (bootRc === 1) {
@@ -207,9 +229,9 @@ function pumpEmuLoop() {
     try {
         dolphinCore._PumpHostJobs();
 
-        // Only transfer and post frame when Dolphin has actually rendered a new visual frame
+        // Only transfer and post frame when in Software mode and Dolphin has rendered a new frame
         const currentFrame = dolphinCore._GetFrame ? dolphinCore._GetFrame() : 0;
-        if (currentFrame !== lastCoreFrame) {
+        if (!gpuDevice && currentFrame !== lastCoreFrame) {
             lastCoreFrame = currentFrame;
             const w = dolphinCore._FrameWidth();
             const h = dolphinCore._FrameHeight();

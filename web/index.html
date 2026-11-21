@@ -933,6 +933,7 @@
                     <span id="emu-game-label" style="color: #94a3b8; font-size: 0.8rem;">GameCube / Wii</span>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-renderer" class="ui-btn ui-btn-secondary" title="Toggle Graphics Backend">GPU: Software</button>
                     <button id="btn-aspect-ratio" class="ui-btn ui-btn-secondary" title="Toggle Aspect Ratio (4:3 / 16:9)">4:3</button>
                     <button id="btn-toggle-hud" class="ui-btn ui-btn-secondary">Toggle Memory HUD</button>
                     <button id="btn-return-menu" class="ui-btn ui-btn-secondary">Wii Menu</button>
@@ -956,6 +957,7 @@
         const badgeIso = document.getElementById('badge-iso');
         const badgeController = document.getElementById('badge-controller');
         const badgeStream = document.getElementById('badge-stream');
+        const btnRenderer = document.getElementById('btn-renderer');
         const btnAspectRatio = document.getElementById('btn-aspect-ratio');
         const btnToggleHud = document.getElementById('btn-toggle-hud');
         const btnReturnMenu = document.getElementById('btn-return-menu');
@@ -963,6 +965,17 @@
         const clockTime = document.getElementById('clock-time');
         const clockDate = document.getElementById('clock-date');
         const clockAmPm = document.querySelector('.clock-ampm');
+
+        let currentRenderer = localStorage.getItem('dolphin_renderer') || 'software';
+        if (btnRenderer) {
+            btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Fast)' : 'GPU: Software (Safe)';
+            btnRenderer.addEventListener('click', () => {
+                currentRenderer = currentRenderer === 'software' ? 'webgpu' : 'software';
+                btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Fast)' : 'GPU: Software (Safe)';
+                localStorage.setItem('dolphin_renderer', currentRenderer);
+                soundEngine.playSelect();
+            });
+        }
 
         // Banner Modal Elements
         const bannerModal = document.getElementById('wii-banner-modal');
@@ -1351,10 +1364,10 @@
             }
 
             workerA.onmessage = (e) => {
-                const { type, ok, title: emuTitle, width, height, buffer, pcm, frames, rate } = e.data || {};
+                const { type, ok, title: emuTitle, width, height, buffer, pcm, frames, rate, backend } = e.data || {};
                 if (type === 'EMU_BOOTED') {
                     if (badgeIso) {
-                        badgeIso.textContent = ok ? "Running" : "Boot Failed";
+                        badgeIso.textContent = ok ? `Running (${backend || '2D'})` : "Boot Failed";
                         badgeIso.className = ok ? "badge ok" : "badge warn";
                     }
                     if (emuGameLabel && (emuTitle || gameTitle)) {
@@ -1382,7 +1395,21 @@
                 }
             };
 
-            workerA.postMessage({ type: 'PORT', port: channel.port1, gameId }, [channel.port1]);
+            const useGpu = currentRenderer === 'webgpu';
+            let offscreen = null;
+            if (useGpu && emuCanvas && typeof emuCanvas.transferControlToOffscreen === 'function') {
+                try {
+                    offscreen = emuCanvas.transferControlToOffscreen();
+                } catch (e) {
+                    console.warn('Canvas transfer failed, falling back to 2D:', e);
+                }
+            }
+
+            if (offscreen) {
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: true, canvas: offscreen }, [channel.port1, offscreen]);
+            } else {
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: false }, [channel.port1]);
+            }
             workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
             gamepadRafId = requestAnimationFrame(pollGameplayGamepad);
 
@@ -1465,6 +1492,11 @@
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
             if (gamepadNav) gamepadNav.start();
+            if (currentRenderer === 'webgpu') {
+                const freshCanvas = emuCanvas.cloneNode(false);
+                emuCanvas.replaceWith(freshCanvas);
+                emuCanvas = freshCanvas;
+            }
             emuViewport.style.display = 'none';
         }
 
