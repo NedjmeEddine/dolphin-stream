@@ -25,3 +25,7 @@ dist_e2e/
 .DS_Store
 .vscode/
 .idea/
+
+# Internal documentation
+docs/
+guide.md
