@@ -975,16 +975,18 @@
 
         let selectedGameId = null;
         let selectedGameTitle = null;
+        let selectedPlatform = null;
         let savedChannelIndex = 0;
 
         function openBanner(slot) {
             selectedGameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
             if (!selectedGameId) return;
 
+            const badge = slot.querySelector('.game-badge');
+            selectedPlatform = slot.dataset.platform || (badge && badge.textContent.toLowerCase().includes('wii') ? 'wii' : 'gamecube');
             savedChannelIndex = channelSlots.indexOf(slot);
             selectedGameTitle = slot.querySelector('.channel-title')?.textContent.trim() || selectedGameId;
             const icon = slot.querySelector('.placeholder-icon')?.textContent || (slot.id === 'disc-channel' ? '💿' : '🎮');
-            const badge = slot.querySelector('.game-badge');
 
             bannerTitle.textContent = selectedGameTitle;
             bannerIcon.textContent = icon;
@@ -1016,9 +1018,10 @@
         btnBannerBack.addEventListener('click', closeBanner);
         btnStartGame.addEventListener('click', () => {
             if (selectedGameId) {
+                const platform = selectedPlatform;
                 closeBanner();
                 soundEngine.playSelect();
-                launchGame(selectedGameId, selectedGameTitle);
+                launchGame(selectedGameId, selectedGameTitle, platform);
             }
         });
 
@@ -1189,6 +1192,7 @@
                     const discSlot = channelSlots[0];
                     if (discSlot) {
                         discSlot.dataset.gameId = 'default';
+                        discSlot.dataset.platform = cat.games[0].platform || 'gamecube';
                         const titleEl = discSlot.querySelector('.channel-title');
                         if (titleEl && cat.games[0].title) titleEl.textContent = cat.games[0].title;
                     }
@@ -1198,6 +1202,7 @@
                     const slot = channelSlots[idx + 1]; // slots 1..11
                     if (!slot) return;
                     slot.dataset.gameId = g.id;
+                    slot.dataset.platform = g.platform || 'gamecube';
                     const titleEl = slot.querySelector('.channel-title');
                     if (titleEl && g.title) titleEl.textContent = g.title;
                     const badgeEl = slot.querySelector('.game-badge');
@@ -1265,10 +1270,14 @@
         let workerA = null;
         let workerB = null;
 
-        function launchGame(gameId, gameTitle) {
-            console.log(`Launching game: ${gameTitle} (${gameId})...`);
+        function launchGame(gameId, gameTitle, platform = 'gamecube') {
+            console.log(`Launching game: ${gameTitle} (${gameId}, ${platform})...`);
             const emuGameLabel = document.getElementById('emu-game-label');
-            if (emuGameLabel) emuGameLabel.textContent = gameTitle;
+            if (emuGameLabel) emuGameLabel.textContent = `${gameTitle} (${platform === 'wii' ? 'Wii' : 'GameCube'})`;
+
+            // Auto-detect default aspect ratio based on console platform
+            currentAspect = platform === 'wii' ? '16:9' : '4:3';
+            if (btnAspectRatio) btnAspectRatio.textContent = currentAspect;
 
             emuViewport.style.display = 'flex';
             resize();
