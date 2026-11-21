@@ -1050,18 +1050,24 @@
         let gpuRenderer = null;
 
         async function setupRenderer() {
-            if (!gpuRenderer) {
-                const res = await initWebGpuRenderer(emuCanvas);
-                if (res && res.supported) {
-                    gpuRenderer = res;
-                } else {
-                    gpuRenderer = createMockGpuRenderer(emuCanvas);
+            try {
+                if (!gpuRenderer) {
+                    const res = await initWebGpuRenderer(emuCanvas);
+                    if (res && res.supported) {
+                        gpuRenderer = res;
+                    } else {
+                        gpuRenderer = createMockGpuRenderer(emuCanvas);
+                    }
                 }
+                if (gpuRenderer) {
+                    gpuRenderer.renderFrame([{ dstRect: [0, 0, 1, 1], uvRect: [0, 0, 1, 1], tint: [1, 1, 1, 1] }]);
+                }
+                return gpuRenderer;
+            } catch (err) {
+                console.warn('WebGPU renderer setup failed, falling back to 2D mock:', err);
+                gpuRenderer = createMockGpuRenderer(emuCanvas);
+                return gpuRenderer;
             }
-            if (gpuRenderer) {
-                gpuRenderer.renderFrame([{ dstRect: [0, 0, 1, 1], uvRect: [0, 0, 1, 1], tint: [1, 1, 1, 1] }]);
-            }
-            return gpuRenderer;
         }
 
         function resize() {
@@ -1080,6 +1086,12 @@
 
             emuCanvas.style.width = `${Math.floor(targetW)}px`;
             emuCanvas.style.height = `${Math.floor(targetH)}px`;
+            if (gpuRenderer && typeof gpuRenderer.resize === 'function') {
+                gpuRenderer.resize(Math.floor(targetW), Math.floor(targetH));
+            } else {
+                emuCanvas.width = currentAspect === '16:9' ? 854 : 640;
+                emuCanvas.height = 480;
+            }
 
             hudCanvas.width = wrapper.clientWidth;
             hudCanvas.height = wrapper.clientHeight;
@@ -1088,7 +1100,6 @@
             }
         }
         window.addEventListener('resize', resize);
-        resize();
 
         // Gamepad API input listener & Wii menu navigation
         const gamepadNav = createGamepadNavigation({
@@ -1261,7 +1272,7 @@
 
             emuViewport.style.display = 'flex';
             resize();
-            setupRenderer();
+            setupRenderer().catch(err => console.warn('Renderer setup error:', err));
 
             // Terminate previous session workers if switching games
             if (workerA) { workerA.terminate(); workerA = null; }
