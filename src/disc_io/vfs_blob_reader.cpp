@@ -59,7 +59,7 @@ uint64_t VfsBlobReader::GetBlockSize() const {
 bool VfsBlobReader::Read(uint64_t offset, uint64_t size, uint8_t* out_ptr) {
     if (!out_ptr) return false;
     if (size == 0) return true;
-    if (offset >= m_size || offset + size > m_size) return false;
+    if (offset >= m_size || size > m_size - offset) return false;
 
     if (m_fd != 0) {
         int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, size);

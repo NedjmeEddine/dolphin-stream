@@ -1064,11 +1064,7 @@
             hudCanvas.width = wrapper.clientWidth;
             hudCanvas.height = wrapper.clientHeight;
             if (!hud) {
-                hud = createHudOverlay(hudCanvas, {
-                    totalBlocks: 256,
-                    maxSlabSlots: 256,
-                    blockSizeBytes: 262144
-                });
+                hud = createHudOverlay(hudCanvas);
             }
         }
         window.addEventListener('resize', resize);
@@ -1088,11 +1084,21 @@
                 if (bannerModal.style.display === 'flex') {
                     closeBanner();
                 } else if (emuViewport.style.display === 'flex') {
-                    soundEngine.playCancel();
-                    emuViewport.style.display = 'none';
+                    exitToMenu();
                 }
             }
         });
+
+        function checkConnectedGamepad() {
+            const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+            const gp = Array.from(gps).find(g => g && g.connected !== false);
+            if (gp) {
+                badgeController.textContent = `Gamepad: ${gp.id.slice(0, 18)}...`;
+                badgeController.className = "badge ok";
+                gamepadNav.start();
+            }
+        }
+        checkConnectedGamepad();
 
         window.addEventListener('gamepadconnected', (e) => {
             badgeController.textContent = `Gamepad: ${e.gamepad.id.slice(0, 18)}...`;
@@ -1311,10 +1317,15 @@
             }
         });
 
-        btnReturnMenu.addEventListener('click', () => {
+        function exitToMenu() {
             soundEngine.playCancel();
+            flushTelem('menu');
+            if (workerA) { workerA.terminate(); workerA = null; }
+            if (workerB) { workerB.terminate(); workerB = null; }
             emuViewport.style.display = 'none';
-        });
+        }
+
+        btnReturnMenu.addEventListener('click', exitToMenu);
 
         btnFullscreen.addEventListener('click', () => {
             if (!document.fullscreenElement) {

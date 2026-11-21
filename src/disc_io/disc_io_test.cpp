@@ -57,6 +57,9 @@ int main() {
     assert(!reader.Read(dummySize, 1, buffer));              // Read at exact EOF
     assert(!reader.Read(dummySize + 10, 1, buffer));         // Read past EOF
     assert(!reader.Read(dummySize - 10, 20, buffer));        // Partial read beyond EOF rejected
+    assert(!reader.Read(dummySize - 1, UINT64_MAX, buffer)); // 64-bit overflow rejected
+    assert(!reader.Read(UINT64_MAX, 1, buffer));             // Max offset rejected
+    assert(!reader.Read(100, UINT64_MAX - 50, buffer));      // Wrapping size rejected
 
     // Test 4: Cold hint safety with null/empty ranges
     reader.HintCold(0, 0);

@@ -69,7 +69,7 @@ add_library(dolphin_vfs_disc_io STATIC
 # Standalone test executable to verify DiscIO reads
 add_executable(disc_io_test
     src/disc_io/disc_io_test.cpp
-    src/disc_io/vfs_blob_reader.cpp
+    ${DISC_IO_SOURCES}
     ${VFS_SOURCES}
 )
 target_compile_definitions(disc_io_test PRIVATE VFS_TESTING)
