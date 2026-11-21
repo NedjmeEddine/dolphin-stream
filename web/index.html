@@ -12,11 +12,17 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #d8e0e6;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #d8e2ea;
             color: #1e293b;
             user-select: none;
             -webkit-user-select: none;
+            /* Authentic Wii Remote hand pointer cursor */
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'%3E%3Cpath d='M10 2 C10 0.8 11.2 0 12.5 0 C13.8 0 15 0.8 15 2.5 L15 13 L17.5 13 C18.8 13 20 14.2 20 15.5 L20 16.5 C21.2 16.5 22.5 17.8 22.5 19 C23.8 19 25 20.2 25 21.5 L25 26 C25 31.5 20.5 36 15 36 C10.5 36 7 32.5 7 28 L7 19.5 C7 17.5 8.2 16 9.8 16 C10 16 10 17 10 18 Z' fill='%23ffffff' stroke='%23334155' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='27' r='5.5' fill='%23ec4899' stroke='%23ffffff' stroke-width='1.5'/%3E%3Ctext x='16' y='30.5' font-size='9' font-family='sans-serif' font-weight='900' fill='%23ffffff' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E") 11 2, auto;
+        }
+
+        .channel-slot, .circular-wii-btn, .pill-btn, .nav-page-tab, .sd-card-btn, button {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'%3E%3Cpath d='M9 3 C9 1.8 10.2 1 11.5 1 C12.8 1 14 1.8 14 3.5 L14 13 L16.5 13 C17.8 13 19 14.2 19 15.5 L19 16.5 C20.2 16.5 21.5 17.8 21.5 19 C22.8 19 24 20.2 24 21.5 L24 25.5 C24 31 19.5 35.5 14 35.5 C9.5 35.5 6 32 6 27.5 L6 19 C6 17 7.2 15.5 8.8 15.5 C9 15.5 9 16.5 9 17.5 Z' fill='%23e0f2fe' stroke='%230284c7' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='15' cy='26.5' r='5.5' fill='%230284c7' stroke='%23ffffff' stroke-width='1.5'/%3E%3Ctext x='15' y='30' font-size='9' font-family='sans-serif' font-weight='900' fill='%23ffffff' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E") 10 3, pointer;
         }
 
         #app-root {
@@ -34,79 +40,138 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: radial-gradient(circle at 50% 30%, #f4f7f9 0%, #d5dde3 80%, #c4ced5 100%);
+            background: radial-gradient(circle at 50% 40%, #f6fafc 0%, #dbe4ec 75%, #cad5df 100%);
             position: relative;
             overflow: hidden;
-            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.08);
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.06);
         }
 
-        /* Subtle horizontal scanline overlay */
+        /* CRT TV Scanline Texture Overlay */
         #wii-home::before {
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: repeating-linear-gradient(
                 0deg,
-                rgba(255, 255, 255, 0.15) 0px,
-                rgba(255, 255, 255, 0.15) 2px,
-                transparent 2px,
-                transparent 4px
+                rgba(255, 255, 255, 0.25) 0px,
+                rgba(255, 255, 255, 0.25) 1.5px,
+                transparent 1.5px,
+                transparent 3px
             );
             pointer-events: none;
-            opacity: 0.7;
+            opacity: 0.6;
+            z-index: 0;
         }
 
-        /* 4x3 Channel Grid Area */
+        /* Minimal Background System Status Strip (Top Right) */
+        .system-status-strip {
+            position: absolute;
+            top: 8px;
+            right: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 10;
+        }
+        .badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(203, 213, 225, 0.8);
+            color: #475569;
+            backdrop-filter: blur(4px);
+        }
+        .badge.ok { background: rgba(220, 252, 231, 0.8); color: #15803d; border-color: #86efac; }
+        .badge.warn { background: rgba(254, 249, 195, 0.8); color: #854d0e; border-color: #fde047; }
+
+        /* ==========================================================================
+           Side Pagination Tabs (Left & Right)
+           ========================================================================== */
+        .nav-page-tab {
+            position: absolute;
+            top: 48%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 72px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(226,232,240,0.65) 100%);
+            border: 1.5px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08), inset 0 1px 2px #fff;
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            z-index: 15;
+            outline: none;
+            transition: all 0.16s ease;
+        }
+        .nav-tab-left { left: 6px; border-radius: 0 18px 18px 0; border-left: none; }
+        .nav-tab-right { right: 6px; border-radius: 18px 0 0 18px; border-right: none; }
+        .nav-page-tab:hover {
+            background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(224,242,254,0.9) 100%);
+            color: #0284c7;
+            width: 36px;
+        }
+
+        /* ==========================================================================
+           4x3 Channel Grid Area
+           ========================================================================== */
         #grid-container {
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 1.5rem 2.5rem;
+            padding: 1.25rem 2.8rem 0.5rem;
             z-index: 1;
+            position: relative;
         }
 
         #channel-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 1.25rem 1.5rem;
+            gap: 1.15rem 1.4rem;
             width: 100%;
-            max-width: 1100px;
+            max-width: 1080px;
             aspect-ratio: 16 / 9;
-            max-height: calc(100vh - 120px);
+            max-height: calc(100vh - 140px);
         }
 
-        /* Channel Slot Card */
+        /* ==========================================================================
+           Wii Channel Slot Card
+           ========================================================================== */
         .channel-slot {
             position: relative;
-            background: linear-gradient(180deg, #ffffff 0%, #eef3f6 100%);
-            border: 2px solid #b2c2ce;
+            background: linear-gradient(180deg, #ffffff 0%, #edf3f7 100%);
+            border: 2.5px solid #b8c8d4;
             border-radius: 16px;
             box-shadow: 
-                0 6px 14px rgba(0, 0, 0, 0.1),
-                inset 0 1px 1px rgba(255, 255, 255, 0.9),
-                inset 0 -2px 4px rgba(0, 0, 0, 0.05);
+                0 6px 14px rgba(0, 0, 0, 0.09),
+                inset 0 2px 2px #ffffff,
+                inset 0 -2px 3px rgba(0, 0, 0, 0.06);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             cursor: pointer;
             outline: none;
-            transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+            transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s ease, border-color 0.16s ease;
             overflow: hidden;
+            -webkit-box-reflect: below 2px linear-gradient(transparent, transparent 80%, rgba(0, 0, 0, 0.12));
         }
 
+        /* Electric Cyan Halo on Hover / Focus */
         .channel-slot:hover, .channel-slot:focus-visible {
-            transform: scale(1.048);
-            border-color: #38bdf8;
+            transform: scale(1.045);
+            border-color: #00a8e8;
             box-shadow: 
-                0 10px 25px rgba(2, 132, 199, 0.22),
-                0 0 0 3px #0284c7,
-                inset 0 1px 2px rgba(255, 255, 255, 1);
-            z-index: 10;
+                0 0 20px rgba(0, 168, 232, 0.7),
+                0 0 0 2.5px #00a8e8,
+                inset 0 2px 3px #ffffff;
+            z-index: 20;
         }
 
+        /* Channel Screen Preview (Hosts actual game covers) */
         .channel-preview {
             flex: 1;
             width: 100%;
@@ -115,56 +180,123 @@
             justify-content: center;
             position: relative;
             overflow: hidden;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+        }
+
+        /* Ready for actual game cover images */
+        .channel-cover {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Fallback placeholder text when no cover image yet */
+        .channel-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #64748b;
+        }
+        .placeholder-icon {
+            font-size: 2rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+        }
+
+        /* Specular Glass Gloss Overlay */
+        .channel-glass-glare {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 48%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.08) 100%);
+            border-top-left-radius: 14px;
+            border-top-right-radius: 14px;
+            pointer-events: none;
+            z-index: 5;
         }
 
         .channel-title {
             width: 100%;
-            padding: 4px 8px 6px;
-            font-size: 0.78rem;
-            font-weight: 700;
+            padding: 4px 8px 5px;
+            font-size: 0.74rem;
+            font-weight: 800;
             text-align: center;
             color: #334155;
-            background: rgba(255, 255, 255, 0.75);
-            border-top: 1px solid rgba(178, 194, 206, 0.5);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
+            border-top: 1.5px solid rgba(184, 200, 212, 0.6);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             letter-spacing: -0.01em;
+            z-index: 5;
         }
 
-        /* Disc Channel (Slot 0) */
+        /* ==========================================================================
+           Disc Channel (Slot 0)
+           ========================================================================== */
         #disc-channel {
-            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            background: linear-gradient(180deg, #ffffff 0%, #e6edf3 100%);
+        }
+
+        .disc-slot-indicator {
+            position: absolute;
+            top: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 4;
+        }
+        .disc-slot-rect {
+            width: 36px;
+            height: 4px;
+            background: #94a3b8;
+            border-radius: 2px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .disc-slot-arrow {
+            font-size: 8px;
+            color: #64748b;
+            line-height: 1;
+            margin-top: 1px;
         }
 
         .optical-disc {
-            width: 72px;
-            height: 72px;
+            width: 68px;
+            height: 68px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 35%, 
                 #ffffff 0%, 
-                #cbd5e1 35%, 
-                #94a3b8 40%, 
+                #cbd5e1 32%, 
+                #94a3b8 42%, 
                 #e2e8f0 55%, 
-                #64748b 70%, 
+                #64748b 72%, 
                 #cbd5e1 100%
             );
             border: 1px solid #94a3b8;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.6s ease;
+            animation: discSpinSlow 20s linear infinite;
+            transition: transform 0.4s ease;
+        }
+
+        @keyframes discSpinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .optical-disc::after {
             content: "";
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
-            background: radial-gradient(circle, #f1f5f9 25%, #94a3b8 28%, #e2e8f0 60%, #475569 100%);
-            border: 1px solid #64748b;
+            background: radial-gradient(circle, #f8fafc 25%, #94a3b8 28%, #e2e8f0 60%, #475569 100%);
+            border: 1.5px solid #64748b;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
         }
 
         .optical-disc-shine {
@@ -172,133 +304,357 @@
             top: 0; left: 0; right: 0; bottom: 0;
             border-radius: 50%;
             background: conic-gradient(
-                from 45deg,
-                transparent 0deg,
-                rgba(255, 255, 255, 0.6) 40deg,
-                transparent 80deg,
-                rgba(56, 189, 248, 0.3) 140deg,
-                transparent 180deg,
-                rgba(255, 255, 255, 0.6) 220deg,
-                transparent 260deg
+                from 30deg,
+                rgba(255, 255, 255, 0.7) 0deg,
+                rgba(56, 189, 248, 0.5) 45deg,
+                rgba(244, 114, 182, 0.5) 90deg,
+                rgba(250, 204, 21, 0.5) 135deg,
+                rgba(74, 222, 128, 0.5) 180deg,
+                rgba(56, 189, 248, 0.5) 225deg,
+                rgba(244, 114, 182, 0.5) 270deg,
+                rgba(255, 255, 255, 0.7) 360deg
             );
+            mix-blend-mode: color-dodge;
             pointer-events: none;
         }
 
         #disc-channel:hover .optical-disc, #disc-channel:focus-visible .optical-disc {
-            transform: rotate(360deg) scale(1.08);
+            animation: discSpinFast 1.2s linear infinite;
+            transform: scale(1.08);
         }
 
-        /* Game Channel Icons */
+        @keyframes discSpinFast {
+            from { transform: rotate(0deg) scale(1.08); }
+            to { transform: rotate(360deg) scale(1.08); }
+        }
+
         .game-badge {
-            font-size: 0.65rem;
-            font-weight: 800;
-            padding: 2px 6px;
+            font-size: 0.62rem;
+            font-weight: 900;
+            padding: 2px 5px;
             border-radius: 4px;
             position: absolute;
             top: 6px;
             right: 6px;
             letter-spacing: 0.05em;
+            z-index: 10;
         }
-        .badge-gc { background: #312e81; color: #a5b4fc; }
-        .badge-wii { background: #0369a1; color: #bae6fd; }
-
-        .game-art {
-            font-size: 1.8rem;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
-        }
+        .badge-gc { background: #312e81; color: #c7d2fe; }
+        .badge-wii { background: #0284c7; color: #e0f2fe; }
 
         /* Empty Channel Slots */
         .channel-empty {
-            background: linear-gradient(180deg, #f0f4f7 0%, #e2e9ef 100%);
-            border-style: dashed;
-            border-color: #cbd5e1;
-            opacity: 0.85;
+            background: linear-gradient(180deg, #edf2f6 0%, #dbe4ec 100%);
+            border: 2px solid #c2d0dc;
+            opacity: 0.9;
+        }
+        .channel-empty .channel-preview {
+            background: radial-gradient(circle at center, #edf2f7 0%, #e2e8f0 100%);
         }
         .channel-empty .channel-title {
             color: #94a3b8;
-            font-weight: 500;
+            font-weight: 600;
         }
         .empty-grid-pattern {
-            width: 32px;
-            height: 24px;
-            opacity: 0.25;
+            width: 42px;
+            height: 30px;
+            opacity: 0.35;
             background-image: radial-gradient(#64748b 1.5px, transparent 1.5px);
-            background-size: 6px 6px;
+            background-size: 7px 7px;
         }
 
         /* ==========================================================================
-           Wii Bottom Toolbar
+           Authentic Wii Bottom Swoop Wave Footer (Matches Image 1)
            ========================================================================== */
         #wii-bottom-bar {
-            height: 72px;
-            background: linear-gradient(180deg, #f8fafc 0%, #e6edf2 100%);
-            border-top: 2px solid #b5c3cd;
+            height: 94px;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 2rem;
-            position: relative;
-            z-index: 5;
-            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+            z-index: 10;
         }
 
+        .wii-wave-backdrop {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .wii-wave-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            filter: drop-shadow(0 -4px 10px rgba(0, 0, 0, 0.06));
+        }
+
+        .bottom-bar-content {
+            position: relative;
+            z-index: 5;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 3rem 4px;
+        }
+
+        .bottom-left-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Circular Tactile Wii Options Button */
         .circular-wii-btn {
-            width: 52px;
-            height: 52px;
+            width: 58px;
+            height: 58px;
             border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #ffffff 0%, #dce4eb 80%, #c5d1dc 100%);
+            background: radial-gradient(circle at 35% 35%, #ffffff 0%, #e4ecf2 75%, #cad5df 100%);
             border: 2px solid #94a3b8;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.12), inset 0 2px 2px #fff;
+            box-shadow: 
+                0 4px 10px rgba(0,0,0,0.15),
+                inset 0 2px 3px #ffffff,
+                inset 0 -2px 3px rgba(0,0,0,0.08);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
             color: #475569;
             cursor: pointer;
-            transition: transform 0.15s, border-color 0.15s;
+            transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+            position: relative;
+            outline: none;
         }
-        .circular-wii-btn:hover {
+        .circular-wii-btn:hover, .circular-wii-btn:focus-visible {
             transform: scale(1.08);
             border-color: #0284c7;
+            box-shadow: 0 0 16px rgba(2, 132, 199, 0.4), inset 0 2px 3px #ffffff;
             color: #0284c7;
         }
+        .wii-btn-logo {
+            font-size: 1.15rem;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+        }
 
+        /* SD Card Slot Icon Button */
+        .sd-card-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 38px;
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+            border: 1.5px solid #0369a1;
+            border-radius: 4px 10px 4px 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.7);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        .sd-card-btn:hover {
+            transform: scale(1.08);
+        }
+        .sd-arrow {
+            font-size: 8px;
+            color: #ffffff;
+            line-height: 1;
+        }
+        .sd-text {
+            font-size: 9px;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+
+        /* Authentic Digital Wii Clock */
         #wii-clock {
             display: flex;
             flex-direction: column;
             align-items: center;
-            font-family: system-ui, -apple-system, monospace;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Arial Rounded MT Bold", sans-serif;
+            margin-top: 6px;
+        }
+        .clock-time-row {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
         }
         #clock-time {
-            font-size: 1.35rem;
-            font-weight: 700;
+            font-size: 1.7rem;
+            font-weight: 800;
             color: #334155;
             letter-spacing: -0.02em;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .clock-ampm {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #64748b;
         }
         #clock-date {
-            font-size: 0.72rem;
-            font-weight: 600;
+            font-size: 0.8rem;
+            font-weight: 700;
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            margin-top: -3px;
         }
 
-        .status-cluster {
+        .bottom-right-group {
             display: flex;
-            gap: 8px;
             align-items: center;
+            gap: 16px;
         }
 
-        .badge {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 9999px;
-            background: #cbd5e1;
-            color: #334155;
+        .envelope-icon {
+            font-size: 1.45rem;
         }
-        .badge.ok { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-        .badge.warn { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+        .msg-unread-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #0284c7;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 900;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* ==========================================================================
+           Wii Channel Banner Modal (16:9 TV Preview Screen)
+           ========================================================================== */
+        #wii-banner-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .banner-card {
+            width: 90%;
+            max-width: 620px;
+            background: linear-gradient(180deg, #ffffff 0%, #e8f0f6 100%);
+            border: 3.5px solid #b8c9d6;
+            border-radius: 24px;
+            box-shadow: 
+                0 25px 60px -10px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(255, 255, 255, 0.9),
+                inset 0 3px 5px #ffffff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: wiiZoomIn 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.22) forwards;
+            position: relative;
+        }
+
+        @keyframes wiiZoomIn {
+            from { transform: scale(0.68); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .banner-screen {
+            height: 240px;
+            background: radial-gradient(circle at 50% 40%, #ffffff 0%, #dde7ef 65%, #c8d4df 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-bottom: 2.5px solid #b8c9d6;
+            overflow: hidden;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .banner-screen::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, transparent 55%);
+            pointer-events: none;
+        }
+
+        .banner-icon {
+            font-size: 3.8rem;
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.22));
+            margin-bottom: 0.6rem;
+        }
+
+        #banner-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #1e293b;
+            text-align: center;
+            padding: 0 1.5rem;
+            letter-spacing: -0.02em;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .banner-actions {
+            height: 82px;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 3rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
+        }
+
+        .pill-btn {
+            min-width: 148px;
+            height: 48px;
+            border-radius: 9999px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+
+        .pill-btn-back {
+            background: radial-gradient(circle at 35% 35%, #ffffff 0%, #d8e2eb 80%, #cbd5e1 100%);
+            border: 2px solid #94a3b8;
+            color: #475569;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12), inset 0 2px 2px #fff;
+        }
+        .pill-btn-back:hover, .pill-btn-back:focus-visible {
+            transform: scale(1.06);
+            border-color: #0284c7;
+            color: #0284c7;
+            box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3), inset 0 2px 2px #fff;
+        }
+
+        .pill-btn-start {
+            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 65%, #0369a1 100%);
+            border: 2px solid #0284c7;
+            color: #ffffff;
+            box-shadow: 
+                0 4px 12px rgba(2, 132, 199, 0.4),
+                inset 0 2px 3px rgba(255,255,255,0.8),
+                inset 0 -2px 3px rgba(0,0,0,0.2);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .pill-btn-start:hover, .pill-btn-start:focus-visible {
+            transform: scale(1.06);
+            background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 65%, #0369a1 100%);
+            box-shadow: 0 8px 24px rgba(2, 132, 199, 0.55), inset 0 2px 3px rgba(255,255,255,0.9);
+        }
 
         /* ==========================================================================
            Emulator Presentation Viewport (Hidden until game selected)
@@ -355,137 +711,42 @@
             background: #334155;
         }
         button.ui-btn-secondary:hover { background: #475569; }
-
-        /* ==========================================================================
-           Wii Channel Banner Modal (Zoom-in preview)
-           ========================================================================== */
-        #wii-banner-modal {
-            display: none;
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            z-index: 50;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .banner-card {
-            width: 90%;
-            max-width: 620px;
-            background: linear-gradient(180deg, #ffffff 0%, #eaf1f6 100%);
-            border: 3px solid #b5c5d1;
-            border-radius: 24px;
-            box-shadow: 
-                0 25px 50px -12px rgba(0, 0, 0, 0.35),
-                0 0 0 1px rgba(255, 255, 255, 0.8),
-                inset 0 2px 4px #ffffff;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            animation: wiiZoomIn 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.25) forwards;
-            position: relative;
-        }
-
-        @keyframes wiiZoomIn {
-            from { transform: scale(0.65); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-
-        .banner-screen {
-            height: 240px;
-            background: radial-gradient(circle at 50% 40%, #ffffff 0%, #dde6ee 70%, #cbd6e2 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            border-bottom: 2px solid #b5c5d1;
-            overflow: hidden;
-        }
-
-        .banner-screen::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
-            pointer-events: none;
-        }
-
-        .banner-icon {
-            font-size: 3.5rem;
-            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
-            margin-bottom: 0.75rem;
-        }
-
-        #banner-title {
-            font-size: 1.35rem;
-            font-weight: 800;
-            color: #1e293b;
-            text-align: center;
-            padding: 0 1.5rem;
-            letter-spacing: -0.02em;
-        }
-
-        .banner-actions {
-            height: 80px;
-            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 2.5rem;
-        }
-
-        .pill-btn {
-            min-width: 140px;
-            height: 48px;
-            border-radius: 9999px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            outline: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-        }
-
-        .pill-btn-back {
-            background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
-            border: 2px solid #94a3b8;
-            color: #475569;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 1px 1px #fff;
-        }
-        .pill-btn-back:hover, .pill-btn-back:focus-visible {
-            transform: scale(1.06);
-            border-color: #0284c7;
-            color: #0284c7;
-            box-shadow: 0 6px 14px rgba(2, 132, 199, 0.25);
-        }
-
-        .pill-btn-start {
-            background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
-            border: 2px solid #0369a1;
-            color: #ffffff;
-            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35), inset 0 1px 2px rgba(255,255,255,0.7);
-        }
-        .pill-btn-start:hover, .pill-btn-start:focus-visible {
-            transform: scale(1.06);
-            background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 100%);
-            box-shadow: 0 8px 20px rgba(2, 132, 199, 0.45);
-        }
     </style>
 </head>
 <body>
     <div id="app-root">
         <!-- Wii Home Screen Shell -->
         <main id="wii-home" aria-label="Wii Menu">
+            <!-- Subtle System Status Badges in Background (Keeps IDs for tests & workers) -->
+            <div class="system-status-strip">
+                <span id="badge-iso" class="badge">Checking...</span>
+                <span id="badge-controller" class="badge">No Gamepad</span>
+                <span id="badge-stream" class="badge ok">64 MB RAM Pool</span>
+            </div>
+
+            <!-- Side Pagination Glass Tabs (Left & Right) -->
+            <button id="nav-page-prev" class="nav-page-tab nav-tab-left" aria-label="Previous Page">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <button id="nav-page-next" class="nav-page-tab nav-tab-right" aria-label="Next Page">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+
+            <!-- 4x3 Channel Grid Area -->
             <div id="grid-container">
                 <div id="channel-grid" role="grid" aria-label="Channels">
                     <!-- Slot 0: Iconic Disc Channel -->
                     <div id="disc-channel" class="channel-slot" tabindex="0" role="gridcell" aria-label="Disc Channel">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview">
+                            <div class="disc-slot-indicator">
+                                <div class="disc-slot-rect"></div>
+                                <span class="disc-slot-arrow">▼</span>
+                            </div>
                             <div class="optical-disc">
                                 <div class="optical-disc-shine"></div>
                             </div>
@@ -495,100 +756,159 @@
 
                     <!-- Slot 1: Super Smash Bros. Melee -->
                     <div id="channel-ssbm" class="channel-slot" tabindex="0" role="gridcell" data-game-id="ssbm" aria-label="Super Smash Bros. Melee">
+                        <div class="channel-glass-glare"></div>
                         <span class="game-badge badge-gc">GC</span>
                         <div class="channel-preview">
-                            <span class="game-art">⚔️</span>
+                            <!-- Clean cover placeholder ready for real image: <img class="channel-cover" src="..." /> -->
+                            <div class="channel-placeholder">
+                                <span class="placeholder-icon">⚔️</span>
+                            </div>
                         </div>
                         <div class="channel-title">Super Smash Bros. Melee</div>
                     </div>
 
                     <!-- Slot 2: Mario Kart Wii -->
                     <div id="channel-mkwii" class="channel-slot" tabindex="0" role="gridcell" data-game-id="mkwii" aria-label="Mario Kart Wii">
+                        <div class="channel-glass-glare"></div>
                         <span class="game-badge badge-wii">WII</span>
                         <div class="channel-preview">
-                            <span class="game-art">🏎️</span>
+                            <div class="channel-placeholder">
+                                <span class="placeholder-icon">🏎️</span>
+                            </div>
                         </div>
                         <div class="channel-title">Mario Kart Wii</div>
                     </div>
 
                     <!-- Slot 3: The Legend of Zelda: Wind Waker -->
                     <div id="channel-tloz-ww" class="channel-slot" tabindex="0" role="gridcell" data-game-id="windwaker" aria-label="The Legend of Zelda: The Wind Waker">
+                        <div class="channel-glass-glare"></div>
                         <span class="game-badge badge-gc">GC</span>
                         <div class="channel-preview">
-                            <span class="game-art">⛵</span>
+                            <div class="channel-placeholder">
+                                <span class="placeholder-icon">⛵</span>
+                            </div>
                         </div>
                         <div class="channel-title">Zelda: Wind Waker</div>
                     </div>
 
                     <!-- Slot 4: Super Mario Sunshine -->
                     <div id="channel-sms" class="channel-slot" tabindex="0" role="gridcell" data-game-id="sunshine" aria-label="Super Mario Sunshine">
+                        <div class="channel-glass-glare"></div>
                         <span class="game-badge badge-gc">GC</span>
                         <div class="channel-preview">
-                            <span class="game-art">☀️</span>
+                            <div class="channel-placeholder">
+                                <span class="placeholder-icon">☀️</span>
+                            </div>
                         </div>
                         <div class="channel-title">Super Mario Sunshine</div>
                     </div>
 
                     <!-- Slot 5: Metroid Prime -->
                     <div id="channel-metroid" class="channel-slot" tabindex="0" role="gridcell" data-game-id="metroid" aria-label="Metroid Prime">
+                        <div class="channel-glass-glare"></div>
                         <span class="game-badge badge-gc">GC</span>
                         <div class="channel-preview">
-                            <span class="game-art">🚀</span>
+                            <div class="channel-placeholder">
+                                <span class="placeholder-icon">🚀</span>
+                            </div>
                         </div>
                         <div class="channel-title">Metroid Prime</div>
                     </div>
 
                     <!-- Slots 6..11: Empty Channel Frames -->
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 7">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 8">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 9">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 10">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 11">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                     <div class="channel-slot channel-empty" tabindex="0" role="gridcell" aria-label="Empty Channel Slot 12">
+                        <div class="channel-glass-glare"></div>
                         <div class="channel-preview"><div class="empty-grid-pattern"></div></div>
                         <div class="channel-title">Empty</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Wii Bottom Bar with Clock and Classic Circular Buttons -->
+            <!-- Authentic Wii Bottom Swoop Wave Bar with Clock & Tactile Buttons (Image 1) -->
             <footer id="wii-bottom-bar">
-                <button id="btn-wii-options" class="circular-wii-btn" aria-label="Wii Options" title="Wii Options">
-                    Wii
-                </button>
-
-                <div id="wii-clock" aria-live="off">
-                    <span id="clock-time">12:00</span>
-                    <span id="clock-date">Sun 11/21</span>
+                <div class="wii-wave-backdrop">
+                    <svg class="wii-wave-svg" viewBox="0 0 1200 94" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="waveFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#f8fafc" />
+                                <stop offset="40%" stop-color="#ebf1f6" />
+                                <stop offset="100%" stop-color="#d6e1ea" />
+                            </linearGradient>
+                            <linearGradient id="cyanRidge" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#38bdf8" />
+                                <stop offset="25%" stop-color="#0ea5e9" />
+                                <stop offset="50%" stop-color="#22d3ee" />
+                                <stop offset="75%" stop-color="#0ea5e9" />
+                                <stop offset="100%" stop-color="#38bdf8" />
+                            </linearGradient>
+                        </defs>
+                        <!-- Bottom Bar Wave Fill: Gentle graceful dip in center for clock -->
+                        <path d="M0,20 C360,20 440,56 600,56 C760,56 840,20 1200,20 L1200,94 L0,94 Z" fill="url(#waveFill)" />
+                        <!-- Glowing Cyan Wave Border -->
+                        <path d="M0,20 C360,20 440,56 600,56 C760,56 840,20 1200,20" fill="none" stroke="url(#cyanRidge)" stroke-width="2.5" />
+                        <!-- Specular Top White Reflection Line -->
+                        <path d="M0,18 C360,18 440,54 600,54 C760,54 840,18 1200,18" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.5" />
+                    </svg>
                 </div>
 
-                <div class="status-cluster">
-                    <span id="badge-iso" class="badge">Checking...</span>
-                    <span id="badge-controller" class="badge">No Gamepad</span>
-                    <span id="badge-stream" class="badge ok">64 MB RAM Pool</span>
-                    <button id="btn-wii-messages" class="circular-wii-btn" aria-label="Wii Message Board" title="Message Board">
-                        ✉️
-                    </button>
+                <div class="bottom-bar-content">
+                    <!-- Left: Wii circular button + SD card icon -->
+                    <div class="bottom-left-group">
+                        <button id="btn-wii-options" class="circular-wii-btn" aria-label="Wii Options" title="Wii Options">
+                            <span class="wii-btn-logo">Wii</span>
+                        </button>
+                        <div id="btn-sd-card" class="sd-card-btn" title="SD Card Slot">
+                            <span class="sd-arrow">▼</span>
+                            <span class="sd-text">SD</span>
+                        </div>
+                    </div>
+
+                    <!-- Center: Digital Wii Clock -->
+                    <div id="wii-clock" aria-live="off">
+                        <div class="clock-time-row">
+                            <span id="clock-time">10:37</span>
+                            <span class="clock-ampm">AM</span>
+                        </div>
+                        <span id="clock-date">Thu 6/22</span>
+                    </div>
+
+                    <!-- Right: Message Board envelope button -->
+                    <div class="bottom-right-group">
+                        <button id="btn-wii-messages" class="circular-wii-btn" aria-label="Wii Message Board" title="Message Board">
+                            <span class="envelope-icon">✉️</span>
+                            <span class="msg-unread-badge">1</span>
+                        </button>
+                    </div>
                 </div>
             </footer>
         </main>
 
-        <!-- Wii Channel Banner Modal (Zoom-in preview) -->
+        <!-- Wii Channel Banner Modal (16:9 Widescreen TV Preview Casing) -->
         <div id="wii-banner-modal" role="dialog" aria-modal="true" aria-labelledby="banner-title">
             <div class="banner-card">
                 <div class="banner-screen">
@@ -639,6 +959,7 @@
         const btnFullscreen = document.getElementById('btn-fullscreen');
         const clockTime = document.getElementById('clock-time');
         const clockDate = document.getElementById('clock-date');
+        const clockAmPm = document.querySelector('.clock-ampm');
 
         // Banner Modal Elements
         const bannerModal = document.getElementById('wii-banner-modal');
@@ -659,7 +980,7 @@
 
             savedChannelIndex = channelSlots.indexOf(slot);
             selectedGameTitle = slot.querySelector('.channel-title')?.textContent.trim() || selectedGameId;
-            const icon = slot.querySelector('.game-art')?.textContent || (slot.id === 'disc-channel' ? '💿' : '🎮');
+            const icon = slot.querySelector('.placeholder-icon')?.textContent || (slot.id === 'disc-channel' ? '💿' : '🎮');
             const badge = slot.querySelector('.game-badge');
 
             bannerTitle.textContent = selectedGameTitle;
@@ -689,50 +1010,65 @@
             }
         }
 
-        btnBannerBack.onclick = closeBanner;
-        btnStartGame.onclick = () => {
-            bannerModal.style.display = 'none';
-            soundEngine.playSelect();
-            launchGame(selectedGameId, selectedGameTitle);
-        };
+        btnBannerBack.addEventListener('click', closeBanner);
+        btnStartGame.addEventListener('click', () => {
+            if (selectedGameId) {
+                closeBanner();
+                soundEngine.playSelect();
+                launchGame(selectedGameId, selectedGameTitle);
+            }
+        });
 
-        // Update real-time clock
+        // Digital Clock updater (e.g. 10:37 AM, Thu 6/22)
         function updateClock() {
             const now = new Date();
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const hours = String(now.getHours()).padStart(2, '0');
-            const mins = String(now.getMinutes()).padStart(2, '0');
             const dayName = days[now.getDay()];
             const month = now.getMonth() + 1;
             const date = now.getDate();
 
-            if (clockTime) clockTime.textContent = `${hours}:${mins}`;
+            if (clockTime) clockTime.textContent = `${hours}:${minutes}`;
+            if (clockAmPm) clockAmPm.textContent = ampm;
             if (clockDate) clockDate.textContent = `${dayName} ${month}/${date}`;
         }
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Verify COOP/COEP isolation for SharedArrayBuffer
-        if (crossOriginIsolated) {
-            badgeIso.textContent = "COOP/COEP ISOLATED";
-            badgeIso.className = "badge ok";
-        } else {
-            badgeIso.textContent = "NOT ISOLATED";
-            badgeIso.className = "badge warn";
-        }
-
-        // Wire HUD overlay
-        const hud = createHudOverlay(hudCanvas);
-        let latestHudSnapshot = null;
-        let opfsMode = 'stream-only';
+        // Responsive Aspect-Ratio Canvas Resizer
+        let hud = null;
         let showHud = true;
+        let latestHudSnapshot = null;
+        let opfsMode = 'PERSISTENT';
 
-        // Resize HUD canvas overlay
         function resize() {
-            hudCanvas.width = window.innerWidth;
-            hudCanvas.height = window.innerHeight;
-            if (hud && latestHudSnapshot && showHud) {
-                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
+            const wrapper = emuViewport;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight - 48; // controls bar height
+            if (w <= 0 || h <= 0) return;
+
+            const aspect = 4 / 3;
+            let targetW = w;
+            let targetH = w / aspect;
+            if (targetH > h) {
+                targetH = h;
+                targetW = h * aspect;
+            }
+
+            emuCanvas.style.width = `${Math.floor(targetW)}px`;
+            emuCanvas.style.height = `${Math.floor(targetH)}px`;
+
+            hudCanvas.width = wrapper.clientWidth;
+            hudCanvas.height = wrapper.clientHeight;
+            if (!hud) {
+                hud = createHudOverlay(hudCanvas, {
+                    totalBlocks: 256,
+                    maxSlabSlots: 256,
+                    blockSizeBytes: 262144
+                });
             }
         }
         window.addEventListener('resize', resize);
@@ -772,30 +1108,41 @@
                 gamepadNav.stop();
             }
         });
-        gamepadNav.start();
 
-        btnFullscreen.onclick = () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                document.exitFullscreen();
-            }
-        };
+        // Interactive sounds on buttons
+        document.getElementById('btn-wii-options')?.addEventListener('click', () => {
+            soundEngine.playSelect();
+        });
+        document.getElementById('btn-wii-messages')?.addEventListener('click', () => {
+            soundEngine.playSelect();
+        });
+        document.getElementById('btn-sd-card')?.addEventListener('click', () => {
+            soundEngine.playDisc();
+        });
+        document.getElementById('nav-page-prev')?.addEventListener('click', () => {
+            soundEngine.playHover();
+        });
+        document.getElementById('nav-page-next')?.addEventListener('click', () => {
+            soundEngine.playHover();
+        });
 
-        btnToggleHud.onclick = () => {
-            showHud = !showHud;
-            hudCanvas.style.display = showHud ? 'block' : 'none';
-            if (showHud && latestHudSnapshot) {
-                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
-            }
-        };
+        // Check range server / ISO availability
+        fetch('/stream/block/0', { headers: { 'Range': 'bytes=0-0' } })
+            .then(res => {
+                if (res.status === 206 || res.status === 200) {
+                    badgeIso.textContent = "Streaming Ready";
+                    badgeIso.className = "badge ok";
+                } else {
+                    badgeIso.textContent = `Offline (${res.status})`;
+                    badgeIso.className = "badge warn";
+                }
+            })
+            .catch(() => {
+                badgeIso.textContent = "Standalone Mode";
+                badgeIso.className = "badge warn";
+            });
 
-        btnReturnMenu.onclick = () => {
-            soundEngine.playCancel();
-            emuViewport.style.display = 'none';
-        };
-
-        // Keyboard navigation (Grid & Modal)
+        // Keyboard navigation for 4x3 channel grid
         window.addEventListener('keydown', (e) => {
             if (bannerModal.style.display === 'flex') {
                 if (e.key === 'Escape') {
@@ -854,49 +1201,42 @@
             workerA = new Worker('worker_a.js', { type: 'module' });
             workerB = new Worker('worker_b.js', { type: 'module' });
 
-                workerA.postMessage({ type: 'PORT', port: channel.port1 }, [channel.port1]);
-                workerB.postMessage({ type: 'PORT', port: channel.port2 }, [channel.port2]);
+            workerA.postMessage({ type: 'PORT', port: channel.port1 }, [channel.port1]);
+            workerB.postMessage({ type: 'PORT', port: channel.port2 }, [channel.port2]);
 
-                workerB.onmessage = (e) => {
-                    const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
-                    if (type === 'HUD_SNAPSHOT') {
-                        latestHudSnapshot = snapshot || e.data;
-                        if (hud && showHud) {
-                            hud.render(latestHudSnapshot, {
-                                storageMode: opfsMode,
-                                gpuStatus: 'Active'
-                            });
-                        }
-                    } else if (type === 'STATUS') {
-                        if (mode) opfsMode = mode;
-                        if (badgeStream && effectivePoolMB) {
-                            badgeStream.textContent = `${effectivePoolMB} MB RAM Pool (${opfsMode})`;
-                        }
-                        workerB.postMessage({ type: 'ENABLE_HUD', enabled: true });
-                    } else if (type === 'FATAL') {
-                        console.error("Worker B fatal error:", reason);
-                        if (badgeIso) {
-                            badgeIso.textContent = reason;
-                            badgeIso.className = "badge warn";
-                        }
+            workerB.onmessage = (e) => {
+                const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
+                if (type === 'HUD_SNAPSHOT') {
+                    latestHudSnapshot = snapshot || e.data;
+                    if (hud && showHud) {
+                        hud.render(latestHudSnapshot, {
+                            storageMode: opfsMode,
+                            gpuStatus: 'Active'
+                        });
                     }
-                };
+                } else if (type === 'STATUS') {
+                    if (mode) opfsMode = mode;
+                    if (badgeStream && effectivePoolMB) {
+                        badgeStream.textContent = `${effectivePoolMB} MB RAM Pool (${opfsMode})`;
+                    }
+                    workerB.postMessage({ type: 'ENABLE_HUD', enabled: true });
+                } else if (type === 'ERROR') {
+                    console.error("Worker error:", reason);
+                    if (badgeIso) {
+                        badgeIso.textContent = `Worker Err: ${reason}`;
+                        badgeIso.className = "badge warn";
+                    }
+                }
+            };
 
-                const flushTelem = (r) => workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r });
-                document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
-                window.addEventListener('pagehide', () => flushTelem('pagehide'));
+            const flushTelem = (r) => workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r });
+            document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
+            window.addEventListener('pagehide', () => flushTelem('pagehide'));
         }
 
         // Attach selection & hover sound listeners to channel slots
         channelSlots.forEach(slot => {
             slot.addEventListener('mouseenter', () => {
-                if (slot.id === 'disc-channel') {
-                    soundEngine.playDisc();
-                } else {
-                    soundEngine.playHover();
-                }
-            });
-            slot.addEventListener('focus', () => {
                 if (slot.id === 'disc-channel') {
                     soundEngine.playDisc();
                 } else {
@@ -915,6 +1255,30 @@
                     slot.click();
                 }
             });
+        });
+
+        // Viewport controls
+        btnToggleHud.addEventListener('click', () => {
+            showHud = !showHud;
+            if (!showHud && hud) {
+                const ctx = hudCanvas.getContext('2d');
+                ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+            } else if (showHud && latestHudSnapshot && hud) {
+                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
+            }
+        });
+
+        btnReturnMenu.addEventListener('click', () => {
+            soundEngine.playCancel();
+            emuViewport.style.display = 'none';
+        });
+
+        btnFullscreen.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                emuViewport.requestFullscreen().catch(err => console.warn(err));
+            } else {
+                document.exitFullscreen().catch(err => console.warn(err));
+            }
         });
 
         console.log("DolphinStream Wii Home Screen initialized.");
