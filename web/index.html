@@ -1127,7 +1127,7 @@
         });
 
         // Check range server / ISO availability
-        fetch('/stream/block/0', { headers: { 'Range': 'bytes=0-0' } })
+        fetch('/manifest.bin', { headers: { 'Range': 'bytes=0-0' } })
             .then(res => {
                 if (res.status === 206 || res.status === 200) {
                     badgeIso.textContent = "Streaming Ready";
@@ -1228,11 +1228,11 @@
                     }
                 }
             };
-
-            const flushTelem = (r) => workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r });
-            document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
-            window.addEventListener('pagehide', () => flushTelem('pagehide'));
         }
+
+        const flushTelem = (r) => { if (workerB) workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r }); };
+        document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
+        window.addEventListener('pagehide', () => flushTelem('pagehide'));
 
         // Attach selection & hover sound listeners to channel slots
         channelSlots.forEach(slot => {

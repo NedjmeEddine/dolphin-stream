@@ -31,6 +31,6 @@ test: disc_io_test
 	./disc_io_test
 
 clean:
-	rm -rf $(BUILD_DIR) libdolphin_vfs.a disc_io_test src/disc_io/*.o
+	rm -rf $(BUILD_DIR) libdolphin_vfs.a disc_io_test src/disc_io/*.o *.o
 
 .PHONY: all clean test
