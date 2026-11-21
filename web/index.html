@@ -1147,6 +1147,16 @@
             .then(res => res.ok ? res.json() : null)
             .then(cat => {
                 if (!cat || !cat.games) return;
+                if (cat.games.length === 1 && cat.games[0].id === 'default') {
+                    // Single-game synthesized catalog attaches to Disc Channel (slot 0)
+                    const discSlot = channelSlots[0];
+                    if (discSlot) {
+                        discSlot.dataset.gameId = 'default';
+                        const titleEl = discSlot.querySelector('.channel-title');
+                        if (titleEl && cat.games[0].title) titleEl.textContent = cat.games[0].title;
+                    }
+                    return;
+                }
                 cat.games.forEach((g, idx) => {
                     const slot = channelSlots[idx + 1]; // slots 1..11
                     if (!slot) return;
