@@ -50,7 +50,7 @@ if(EMSCRIPTEN)
         -sWASM_BIGINT
         -sMODULARIZE=1
         -sEXPORT_ES6=1
-        -sEXPORT_NAME=createDolphinVfsModule
+        -sEXPORT_NAME=createVfsModule
         -sEXPORTED_FUNCTIONS=${VFS_EXPORTED_FUNCTIONS}
     )
 
