@@ -8,7 +8,7 @@ CFLAGS = -std=c11 -O2 -Wall -Wextra -pthread -I. -Iexternals/vfs-streamer -I$(VF
 CXXFLAGS = -std=c++20 -O2 -Wall -Wextra -pthread -I. -Iexternals/vfs-streamer -I$(VFS_DIR)
 
 VFS_OBJS = $(BUILD_DIR)/vfs_client.o $(BUILD_DIR)/vfs_fs.o $(BUILD_DIR)/vfs_hal.o $(BUILD_DIR)/vfs_policy.o
-DISC_IO_OBJS = $(BUILD_DIR)/vfs_blob_reader.o
+DISC_IO_OBJS = $(BUILD_DIR)/vfs_blob_reader.o $(BUILD_DIR)/disc_header.o
 
 all: libdolphin_vfs.a disc_io_test
 
@@ -19,6 +19,9 @@ disc_io_test: src/disc_io/disc_io_test.cpp $(DISC_IO_OBJS) $(VFS_OBJS)
 	$(CXX) $(CXXFLAGS) -DVFS_TESTING $^ -o $@
 
 $(BUILD_DIR)/vfs_blob_reader.o: src/disc_io/vfs_blob_reader.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/disc_header.o: src/disc_io/disc_header.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(VFS_DIR)/%.c | $(BUILD_DIR)
