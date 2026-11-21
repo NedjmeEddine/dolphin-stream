@@ -1,7 +1,7 @@
 import createVfsModule from './vfs.js';
-import * as Offsets from './vfs_offsets.js';
 import createDolphinCore from './cores/dolphin/dolphin-core-upstream.js';
 
+const SCRATCH_CAP = 4 * 1024 * 1024; // 4 MiB reusable read buffer
 let portB = null;
 let vfsModule = null;
 let vfsMemory = null;
@@ -91,7 +91,7 @@ function setupPortB() {
                     return;
                 }
 
-                scratchBufPtr = vfsModule._malloc(65536); // 64 KB scratch buffer
+                scratchBufPtr = vfsModule._malloc(SCRATCH_CAP);
 
                 // Extract disc total byte size directly from manifest header (offset 0x08)
                 const dv = new DataView(manifestHeaderBytes.buffer, manifestHeaderBytes.byteOffset, 32);
@@ -117,15 +117,17 @@ function setupPortB() {
                     open: (stream) => { stream.seekable = true; },
                     read: (stream, buffer, offset, length, position) => {
                         if (length === 0) return 0;
-                        // shortcut: synchronous read using 64 KB scratch chunks, upgrade to full buffer if length exceeds scratch
-                        const chunkLen = Math.min(length, 65536);
-                        const n = vfsModule._vfs_read_sync(ctxPtr, BigInt(position), scratchBufPtr, chunkLen);
-                        if (n > 0) {
+                        let totalRead = 0;
+                        while (totalRead < length) {
+                            const chunkLen = Math.min(length - totalRead, SCRATCH_CAP);
+                            const n = vfsModule._vfs_read_sync(ctxPtr, BigInt(position + totalRead), scratchBufPtr, chunkLen);
+                            if (n <= 0) break;
                             const slice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, Number(n));
-                            buffer.set(slice, offset);
-                            return Number(n);
+                            buffer.set(slice, offset + totalRead);
+                            totalRead += Number(n);
+                            if (Number(n) < chunkLen) break;
                         }
-                        return 0;
+                        return totalRead;
                     },
                     llseek: (stream, offset, whence) => {
                         let dest = offset;

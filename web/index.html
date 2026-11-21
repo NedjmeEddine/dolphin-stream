@@ -1053,24 +1053,10 @@
         let gpuRenderer = null;
 
         async function setupRenderer() {
-            try {
-                if (!gpuRenderer) {
-                    const res = await initWebGpuRenderer(emuCanvas);
-                    if (res && res.supported) {
-                        gpuRenderer = res;
-                    } else {
-                        gpuRenderer = createMockGpuRenderer(emuCanvas);
-                    }
-                }
-                if (gpuRenderer) {
-                    gpuRenderer.renderFrame([{ dstRect: [0, 0, 1, 1], uvRect: [0, 0, 1, 1], tint: [1, 1, 1, 1] }]);
-                }
-                return gpuRenderer;
-            } catch (err) {
-                console.warn('WebGPU renderer setup failed, falling back to 2D mock:', err);
+            if (!gpuRenderer) {
                 gpuRenderer = createMockGpuRenderer(emuCanvas);
-                return gpuRenderer;
             }
+            return gpuRenderer;
         }
 
         function resize() {
@@ -1117,8 +1103,6 @@
             onCancel: () => {
                 if (bannerModal.style.display === 'flex') {
                     closeBanner();
-                } else if (emuViewport.style.display === 'flex') {
-                    exitToMenu();
                 }
             }
         });
@@ -1269,9 +1253,9 @@
         // Lazy out-of-core streaming workers (launched on game selection)
         let workerA = null;
         let workerB = null;
-        let bootStreamTimer = null;
         let pcmAudioCtx = null;
         let nextPcmTime = 0;
+        let gamepadRafId = null;
 
         function renderGameSplash(title, gameId, platform) {
             const ctx = emuCanvas.getContext('2d');
@@ -1329,10 +1313,11 @@
             setupRenderer().catch(err => console.warn('Renderer setup error:', err));
             renderGameSplash(gameTitle, gameId, platform);
 
-            // Terminate previous session workers if switching games
-            if (bootStreamTimer) { clearTimeout(bootStreamTimer); bootStreamTimer = null; }
+            // Terminate previous session workers and cancel input loops if switching games
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
+            if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
+            if (gamepadNav) gamepadNav.stop();
 
             const channel = new MessageChannel();
             workerA = new Worker('emu_worker.js', { type: 'module' });
@@ -1377,14 +1362,17 @@
                     }
                 } else if (type === 'EMU_FRAME') {
                     if (width && height && buffer) {
-                        if (emuCanvas.width !== width || emuCanvas.height !== height) {
-                            emuCanvas.width = width;
-                            emuCanvas.height = height;
-                        }
                         const ctx = emuCanvas.getContext('2d');
                         if (ctx) {
-                            const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
-                            ctx.putImageData(img, 0, 0);
+                            createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
+                                .then(bmp => {
+                                    ctx.drawImage(bmp, 0, 0, emuCanvas.width, emuCanvas.height);
+                                    bmp.close();
+                                })
+                                .catch(() => {
+                                    const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
+                                    ctx.putImageData(img, 0, 0);
+                                });
                         }
                     }
                 } else if (type === 'EMU_AUDIO') {
@@ -1396,7 +1384,7 @@
 
             workerA.postMessage({ type: 'PORT', port: channel.port1, gameId }, [channel.port1]);
             workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
-            requestAnimationFrame(pollGameplayGamepad);
+            gamepadRafId = requestAnimationFrame(pollGameplayGamepad);
 
             workerB.onmessage = (e) => {
                 const { type, snapshot, opfsMode: mode, effectivePoolMB, reason } = e.data || {};
@@ -1472,10 +1460,11 @@
         function exitToMenu() {
             soundEngine.playCancel();
             flushTelem('menu');
-            if (bootStreamTimer) { clearTimeout(bootStreamTimer); bootStreamTimer = null; }
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
+            if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
+            if (gamepadNav) gamepadNav.start();
             emuViewport.style.display = 'none';
         }
 
@@ -1561,7 +1550,7 @@
                     break;
                 }
             }
-            requestAnimationFrame(pollGameplayGamepad);
+            gamepadRafId = requestAnimationFrame(pollGameplayGamepad);
         }
 
         console.log("DolphinStream Wii Home Screen initialized.");
