@@ -10,9 +10,17 @@ let scratchBufPtr = 0;
 let discSize = 0;
 let dolphinCore = null;
 let isRunning = false;
-let frameTimer = null;
 let lastCoreFrame = -1;
 let lastAudioTime = 0;
+
+const loopChannel = new MessageChannel();
+loopChannel.port1.onmessage = () => {
+    if (isRunning) pumpEmuLoop();
+};
+
+function scheduleNextPump() {
+    if (isRunning) loopChannel.port2.postMessage(0);
+}
 
 function cPath(mod, str) {
     const bytes = new TextEncoder().encode(str + '\0');
@@ -49,7 +57,6 @@ self.onmessage = async (e) => {
 
     if (type === 'STOP') {
         isRunning = false;
-        if (frameTimer) { clearTimeout(frameTimer); frameTimer = null; }
         if (dolphinCore) dolphinCore._StopCore();
         self.postMessage({ type: 'STOPPED' });
         return;
@@ -150,17 +157,21 @@ function setupPortB() {
                 dolphinCore._SetCpuCore(cachedInterpPtr);
                 dolphinCore._free(cachedInterpPtr);
 
-                // Speed optimizations:
-                // 1. Underclock virtual CPU to 0.7x (340 MHz) to reduce CPU cycle budget per frame
-                // 2. Enable 4x4 fast software rasterizer (fastsw=2)
-                // 3. Enable YUYV->RGBA fast paths
-                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.7);
-                if (dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(2);
+                // Maximum performance configuration for browser WASM:
+                // 1. Underclock virtual CPU to 0.5x (half instruction count per frame)
+                // 2. Unthrottle emulation speed (0.0 = unlimited / no sleep delays)
+                // 3. Fast 4x4 interpolated software rasterizer (fastsw=3)
+                // 4. Fast YUYV->RGBA XFB color conversion
+                // 5. Branchless specialized TEV combiners
+                // 6. PowerPC -> WASM JIT compiler
+                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.5);
+                if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(0.0);
+                if (dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
+                if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
 
                 dolphinCore._CoreInit();
 
-                // Enable PowerPC -> WASM JIT basic block compiler
                 if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
                 const discPathPtr = cPath(dolphinCore, '/vfs/game.iso');
@@ -180,7 +191,7 @@ function setupPortB() {
 
                 if (bootRc === 1) {
                     isRunning = true;
-                    pumpEmuLoop();
+                    scheduleNextPump();
                 }
             } catch (err) {
                 console.error('[emu_worker] Initialization failed:', err);
@@ -231,6 +242,6 @@ function pumpEmuLoop() {
         console.warn('[emu_worker] Frame loop warning:', loopErr);
     }
 
-    // shortcut: setTimeout 0 yields to incoming worker messages without adding artificial 16ms sleep delays
-    frameTimer = setTimeout(pumpEmuLoop, 0);
+    // Yield to worker event queue via zero-delay MessageChannel dispatch
+    scheduleNextPump();
 }
