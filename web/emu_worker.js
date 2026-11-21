@@ -11,6 +11,7 @@ let discSize = 0;
 let dolphinCore = null;
 let isRunning = false;
 let frameTimer = null;
+let lastCoreFrame = -1;
 
 function cPath(mod, str) {
     const bytes = new TextEncoder().encode(str + '\0');
@@ -146,7 +147,18 @@ function setupPortB() {
                 dolphinCore._SetCpuCore(cachedInterpPtr);
                 dolphinCore._free(cachedInterpPtr);
 
+                // Speed optimizations:
+                // 1. Underclock virtual CPU to 0.7x (340 MHz) to reduce CPU cycle budget per frame
+                // 2. Enable 4x4 fast software rasterizer (fastsw=2)
+                // 3. Enable YUYV->RGBA fast paths
+                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.7);
+                if (dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(2);
+                if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
+
                 dolphinCore._CoreInit();
+
+                // Enable PowerPC -> WASM JIT basic block compiler
+                if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
                 const discPathPtr = cPath(dolphinCore, '/vfs/game.iso');
                 const bootRc = dolphinCore._BootDisc(discPathPtr);
@@ -180,22 +192,26 @@ function pumpEmuLoop() {
 
     try {
         dolphinCore._PumpHostJobs();
-        dolphinCore._RunFrame();
 
-        const w = dolphinCore._FrameWidth();
-        const h = dolphinCore._FrameHeight();
-        const ptr = dolphinCore._FrameBuffer();
+        // Only transfer and post frame when Dolphin has actually rendered a new visual frame
+        const currentFrame = dolphinCore._GetFrame ? dolphinCore._GetFrame() : 0;
+        if (currentFrame !== lastCoreFrame) {
+            lastCoreFrame = currentFrame;
+            const w = dolphinCore._FrameWidth();
+            const h = dolphinCore._FrameHeight();
+            const ptr = dolphinCore._FrameBuffer();
 
-        if (w > 0 && h > 0 && ptr) {
-            const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
-            self.postMessage(
-                { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
-                [frameBytes.buffer]
-            );
+            if (w > 0 && h > 0 && ptr) {
+                const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
+                self.postMessage(
+                    { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
+                    [frameBytes.buffer]
+                );
+            }
         }
 
         const audioCap = dolphinCore._AudioBufferFrames();
-        const mixed = dolphinCore._MixAudio(Math.min(audioCap, 1024));
+        const mixed = dolphinCore._MixAudio(Math.min(audioCap, 512));
         if (mixed > 0) {
             const aPtr = dolphinCore._AudioBuffer();
             const pcm = new Int16Array(dolphinCore.HEAPU8.buffer, aPtr, mixed * 2).slice();
@@ -208,5 +224,6 @@ function pumpEmuLoop() {
         console.warn('[emu_worker] Frame loop warning:', loopErr);
     }
 
-    frameTimer = setTimeout(pumpEmuLoop, 16);
+    // shortcut: setTimeout 0 yields to incoming worker messages without adding artificial 16ms sleep delays
+    frameTimer = setTimeout(pumpEmuLoop, 0);
 }
