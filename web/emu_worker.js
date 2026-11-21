@@ -12,6 +12,7 @@ let dolphinCore = null;
 let isRunning = false;
 let frameTimer = null;
 let lastCoreFrame = -1;
+let lastAudioTime = 0;
 
 function cPath(mod, str) {
     const bytes = new TextEncoder().encode(str + '\0');
@@ -210,15 +211,19 @@ function pumpEmuLoop() {
             }
         }
 
-        const audioCap = dolphinCore._AudioBufferFrames();
-        const mixed = dolphinCore._MixAudio(Math.min(audioCap, 512));
-        if (mixed > 0) {
-            const aPtr = dolphinCore._AudioBuffer();
-            const pcm = new Int16Array(dolphinCore.HEAPU8.buffer, aPtr, mixed * 2).slice();
-            self.postMessage(
-                { type: 'EMU_AUDIO', pcm: pcm.buffer, frames: mixed, rate: dolphinCore._AudioSampleRate() },
-                [pcm.buffer]
-            );
+        const now = performance.now();
+        if (now - lastAudioTime >= 30) {
+            lastAudioTime = now;
+            const audioCap = dolphinCore._AudioBufferFrames();
+            const mixed = dolphinCore._MixAudio(Math.min(audioCap, 2048));
+            if (mixed > 0) {
+                const aPtr = dolphinCore._AudioBuffer();
+                const pcm = new Int16Array(dolphinCore.HEAPU8.buffer, aPtr, mixed * 2).slice();
+                self.postMessage(
+                    { type: 'EMU_AUDIO', pcm: pcm.buffer, frames: mixed, rate: dolphinCore._AudioSampleRate() },
+                    [pcm.buffer]
+                );
+            }
         }
     } catch (loopErr) {
         console.warn('[emu_worker] Frame loop warning:', loopErr);

@@ -1270,6 +1270,8 @@
         let workerA = null;
         let workerB = null;
         let bootStreamTimer = null;
+        let pcmAudioCtx = null;
+        let nextPcmTime = 0;
 
         function renderGameSplash(title, gameId, platform) {
             const ctx = emuCanvas.getContext('2d');
@@ -1336,8 +1338,35 @@
             workerA = new Worker('emu_worker.js', { type: 'module' });
             workerB = new Worker('worker_b.js', { type: 'module' });
 
+            function playPcm(pcmBuffer, frames, sampleRate = 48000) {
+                if (!pcmAudioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) pcmAudioCtx = new AC({ sampleRate });
+                }
+                if (!pcmAudioCtx) return;
+                if (pcmAudioCtx.state === 'suspended') {
+                    pcmAudioCtx.resume().catch(() => {});
+                    return;
+                }
+                const pcm = new Int16Array(pcmBuffer);
+                const buf = pcmAudioCtx.createBuffer(2, frames, sampleRate);
+                const l = buf.getChannelData(0);
+                const r = buf.getChannelData(1);
+                for (let i = 0; i < frames; i++) {
+                    l[i] = pcm[i * 2] / 32768;
+                    r[i] = pcm[i * 2 + 1] / 32768;
+                }
+                const s = pcmAudioCtx.createBufferSource();
+                s.buffer = buf;
+                s.connect(pcmAudioCtx.destination);
+                const now = pcmAudioCtx.currentTime;
+                if (nextPcmTime < now) nextPcmTime = now;
+                s.start(nextPcmTime);
+                nextPcmTime += buf.duration;
+            }
+
             workerA.onmessage = (e) => {
-                const { type, ok, title: emuTitle, width, height, buffer } = e.data || {};
+                const { type, ok, title: emuTitle, width, height, buffer, pcm, frames, rate } = e.data || {};
                 if (type === 'EMU_BOOTED') {
                     if (badgeIso) {
                         badgeIso.textContent = ok ? "Running" : "Boot Failed";
@@ -1357,6 +1386,10 @@
                             const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
                             ctx.putImageData(img, 0, 0);
                         }
+                    }
+                } else if (type === 'EMU_AUDIO') {
+                    if (pcm && frames) {
+                        playPcm(pcm, frames, rate);
                     }
                 }
             };
@@ -1442,6 +1475,7 @@
             if (bootStreamTimer) { clearTimeout(bootStreamTimer); bootStreamTimer = null; }
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
+            if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
             emuViewport.style.display = 'none';
         }
 
