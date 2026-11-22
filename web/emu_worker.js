@@ -50,6 +50,7 @@ self.onmessage = async (e) => {
         if (offscreenCanvas && !useWebGpu) {
             try {
                 ctx2d = offscreenCanvas.getContext('2d');
+                console.log('[emu_worker] offscreen 2d context initialized successfully');
             } catch (err) {
                 console.warn('[emu_worker] offscreen 2d context failed, falling back to postMessage:', err);
                 ctx2d = null;
@@ -167,7 +168,7 @@ function setupPortB() {
                 // Initialize Dolphin Core
                 dolphinCore = await createDolphinCore({
                     locateFile: (p) => `./cores/dolphin/${p}`,
-                    canvas: offscreenCanvas || undefined,
+                    canvas: (gpuDevice && offscreenCanvas) ? offscreenCanvas : undefined,
                     preinitializedWebGPUDevice: gpuDevice || undefined,
                     print: (text) => console.log('[Dolphin]', text),
                     printErr: (text) => console.warn('[Dolphin Err]', text)
@@ -295,7 +296,7 @@ function pumpEmuLoop() {
                             offscreenCanvas.width = w;
                             offscreenCanvas.height = h;
                         }
-                        const frameClamped = new Uint8ClampedArray(dolphinCore.HEAPU8.buffer, ptr, w * h * 4);
+                        const frameClamped = new Uint8ClampedArray(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
                         const img = new ImageData(frameClamped, w, h);
                         ctx2d.putImageData(img, 0, 0);
                         self.postMessage({ type: 'EMU_FRAME_DRAWN', width: w, height: h });

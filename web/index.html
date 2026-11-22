@@ -1325,7 +1325,6 @@
 
             emuViewport.style.display = 'flex';
             resize();
-            setupRenderer().catch(err => console.warn('Renderer setup error:', err));
             renderGameSplash(gameTitle, gameId, platform);
 
             // Terminate previous session workers and cancel input loops if switching games
