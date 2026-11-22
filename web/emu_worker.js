@@ -16,6 +16,11 @@ let isRunning = false;
 let lastCoreFrame = -1;
 let lastAudioTime = 0;
 let lastFramePostTime = 0;
+let totalVfsWaitMs = 0;
+let totalCpuTimeMs = 0;
+let totalDiscBytesRead = 0;
+let lastReadEndTimestamp = 0;
+let lastMetricsReportTime = 0;
 
 const loopChannel = new MessageChannel();
 loopChannel.port1.onmessage = () => {
@@ -151,16 +156,32 @@ function setupPortB() {
                     open: (stream) => { stream.seekable = true; },
                     read: (stream, buffer, offset, length, position) => {
                         if (length === 0) return 0;
+                        const readStart = performance.now();
+                        if (lastReadEndTimestamp > 0) {
+                            totalCpuTimeMs += (readStart - lastReadEndTimestamp);
+                        }
+
                         let totalRead = 0;
                         while (totalRead < length) {
                             const chunkLen = Math.min(length - totalRead, SCRATCH_CAP);
+                            const t0 = performance.now();
                             const n = vfsModule._vfs_read_sync(ctxPtr, BigInt(position + totalRead), scratchBufPtr, chunkLen);
+                            totalVfsWaitMs += (performance.now() - t0);
                             if (n <= 0) break;
                             const slice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, Number(n));
                             buffer.set(slice, offset + totalRead);
                             totalRead += Number(n);
                             if (Number(n) < chunkLen) break;
                         }
+
+                        lastReadEndTimestamp = performance.now();
+                        totalDiscBytesRead += totalRead;
+
+                        if (lastReadEndTimestamp - lastMetricsReportTime >= 2000) {
+                            lastMetricsReportTime = lastReadEndTimestamp;
+                            console.log(`[VFS-TIMING] Disc: ${(totalDiscBytesRead / (1024 * 1024)).toFixed(2)} MB | VFS Futex Wait: ${totalVfsWaitMs.toFixed(1)} ms | CPU/Decompress Time: ${totalCpuTimeMs.toFixed(1)} ms`);
+                        }
+
                         return totalRead;
                     },
                     llseek: (stream, offset, whence) => {
