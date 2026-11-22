@@ -1269,6 +1269,8 @@
         let pcmAudioCtx = null;
         let nextPcmTime = 0;
         let gamepadRafId = null;
+        let pendingFrameBitmap = null;
+        let currentFrameBitmap = null;
 
         function renderGameSplash(title, gameId, platform) {
             const ctx = emuCanvas.getContext('2d');
@@ -1330,6 +1332,8 @@
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
+            if (pendingFrameBitmap) { pendingFrameBitmap.close(); pendingFrameBitmap = null; }
+            if (currentFrameBitmap) { currentFrameBitmap.close(); currentFrameBitmap = null; }
             if (gamepadNav) gamepadNav.stop();
 
             const channel = new MessageChannel();
@@ -1375,18 +1379,18 @@
                     }
                 } else if (type === 'EMU_FRAME') {
                     if (width && height && buffer) {
-                        const ctx = emuCanvas.getContext('2d');
-                        if (ctx) {
-                            createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
-                                .then(bmp => {
-                                    ctx.drawImage(bmp, 0, 0, emuCanvas.width, emuCanvas.height);
-                                    bmp.close();
-                                })
-                                .catch(() => {
+                        createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
+                            .then(bmp => {
+                                if (pendingFrameBitmap) pendingFrameBitmap.close();
+                                pendingFrameBitmap = bmp;
+                            })
+                            .catch(() => {
+                                const ctx = emuCanvas.getContext('2d');
+                                if (ctx) {
                                     const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
                                     ctx.putImageData(img, 0, 0);
-                                });
-                        }
+                                }
+                            });
                     }
                 } else if (type === 'EMU_AUDIO') {
                     if (pcm && frames) {
@@ -1420,7 +1424,8 @@
                     if (hud && showHud) {
                         hud.render(latestHudSnapshot, {
                             storageMode: opfsMode,
-                            gpuStatus: 'Active'
+                            gpuStatus: currentRenderer === 'webgpu' ? 'Direct WebGPU' : 'Dual-Core Rasterizer',
+                            vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : 'Unified Slab (64 MB)'
                         });
                     }
                 } else if (type === 'STATUS') {
@@ -1480,7 +1485,11 @@
                 const ctx = hudCanvas.getContext('2d');
                 ctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
             } else if (showHud && latestHudSnapshot && hud) {
-                hud.render(latestHudSnapshot, { storageMode: opfsMode, gpuStatus: 'Active' });
+                hud.render(latestHudSnapshot, {
+                    storageMode: opfsMode,
+                    gpuStatus: currentRenderer === 'webgpu' ? 'Direct WebGPU' : 'Dual-Core Rasterizer',
+                    vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : 'Unified Slab (64 MB)'
+                });
             }
         });
 
@@ -1491,6 +1500,8 @@
             if (workerB) { workerB.terminate(); workerB = null; }
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
+            if (pendingFrameBitmap) { pendingFrameBitmap.close(); pendingFrameBitmap = null; }
+            if (currentFrameBitmap) { currentFrameBitmap.close(); currentFrameBitmap = null; }
             if (gamepadNav) gamepadNav.start();
             if (currentRenderer === 'webgpu') {
                 const freshCanvas = emuCanvas.cloneNode(false);
@@ -1544,9 +1555,21 @@
             }
         });
 
-        // Live Gamepad polling loop during emulation
+        // Live Gamepad polling and 60 Hz frame presentation loop during emulation
         function pollGameplayGamepad() {
             if (emuViewport.style.display !== 'flex' || !workerA) return;
+
+            // Decoupled 60 Hz frame presentation: present latest visual frame synchronized with display refresh
+            if (pendingFrameBitmap) {
+                if (currentFrameBitmap) currentFrameBitmap.close();
+                currentFrameBitmap = pendingFrameBitmap;
+                pendingFrameBitmap = null;
+                const ctx = emuCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(currentFrameBitmap, 0, 0, emuCanvas.width, emuCanvas.height);
+                }
+            }
+
             const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
             for (let i = 0; i < gamepads.length; i++) {
                 const gp = gamepads[i];

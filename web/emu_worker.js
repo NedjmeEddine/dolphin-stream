@@ -174,7 +174,7 @@ function setupPortB() {
                 const node = dolphinCore.FS.mkdev('/vfs/game.iso', 0o666, dev);
                 node.usedBytes = discSize;
 
-                dolphinCore._SetCpuThread(0);
+                dolphinCore._SetCpuThread(1);
                 const backendName = gpuDevice ? 'WebGPU-Real' : 'Software Renderer';
                 const backendPtr = cPath(dolphinCore, backendName);
                 dolphinCore._SetVideoBackend(backendPtr);
@@ -185,7 +185,8 @@ function setupPortB() {
                 dolphinCore._free(cachedInterpPtr);
 
                 // Maximum performance configuration for browser WASM:
-                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.5);
+                // Native 1.0x clock speed ensures full-speed LZ/YAZ0 boot decompression
+                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(1.0);
                 if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(0.0);
                 if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
@@ -208,7 +209,7 @@ function setupPortB() {
                     title: coreTitle,
                     status: coreStatus,
                     discSize,
-                    backend: gpuDevice ? 'WebGPU' : 'Software'
+                    backend: gpuDevice ? 'WebGPU' : 'Dual-Core Software'
                 });
 
                 if (bootRc === 1) {
