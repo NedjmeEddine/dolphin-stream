@@ -126,7 +126,21 @@ function setupPortB() {
                     try {
                         const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
                         if (adapter) {
-                            gpuDevice = await adapter.requestDevice();
+                            const requiredFeatures = [];
+                            if (adapter.features && adapter.features.has('dual-source-blending')) {
+                                requiredFeatures.push('dual-source-blending');
+                            }
+                            gpuDevice = await adapter.requestDevice({ requiredFeatures });
+
+                            if (gpuDevice) {
+                                gpuDevice.addEventListener('uncapturederror', (e) => {
+                                    console.error('[WebGPU Error]', e.error?.message || e.error);
+                                });
+                                gpuDevice.lost.then((info) => {
+                                    console.warn('[WebGPU Device Lost]', info.message, info.reason);
+                                });
+                            }
+
                             if (offscreenCanvas) {
                                 const gpuCtx = offscreenCanvas.getContext('webgpu');
                                 if (gpuCtx) {
@@ -144,6 +158,7 @@ function setupPortB() {
                 // Initialize Dolphin Core
                 dolphinCore = await createDolphinCore({
                     locateFile: (p) => `./cores/dolphin/${p}`,
+                    canvas: offscreenCanvas || undefined,
                     preinitializedWebGPUDevice: gpuDevice || undefined,
                     print: (text) => console.log('[Dolphin]', text),
                     printErr: (text) => console.warn('[Dolphin Err]', text)
@@ -196,7 +211,9 @@ function setupPortB() {
                 const node = dolphinCore.FS.mkdev('/vfs/game.iso', 0o666, dev);
                 node.usedBytes = discSize;
 
-                dolphinCore._SetCpuThread(1);
+                // In WebGPU mode, keep single-threaded (0) to preserve swapchain thread affinity;
+                // in Software mode, run dual-core (1) so the CPU and rasterizer run in parallel pthreads.
+                dolphinCore._SetCpuThread(gpuDevice ? 0 : 1);
                 const backendName = gpuDevice ? 'WebGPU-Real' : 'Software Renderer';
                 const backendPtr = cPath(dolphinCore, backendName);
                 dolphinCore._SetVideoBackend(backendPtr);
