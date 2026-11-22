@@ -218,8 +218,27 @@ function setupPortB() {
                     }
                 });
 
-                const node = dolphinCore.FS.mkdev('/vfs/game.iso', 0o666, dev);
+                // Peek magic bytes to determine whether this is an RVZ container or raw ISO
+                vfsModule._vfs_read_sync(ctxPtr, 0n, scratchBufPtr, 4);
+                const magicSlice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, 4);
+                const isRvz = (magicSlice[0] === 0x52 && magicSlice[1] === 0x56 && magicSlice[2] === 0x5A && magicSlice[3] === 0x01);
+                const fileName = isRvz ? '/vfs/game.rvz' : '/vfs/game.iso';
+                console.log(`[emu_worker] Detected disc format: ${isRvz ? 'RVZ' : 'GCM/ISO'} -> mounting ${fileName}`);
+
+                const node = dolphinCore.FS.mkdev(fileName, 0o666, dev);
                 node.usedBytes = discSize;
+
+                // Emscripten character devices default st_size to 0 in getattr.
+                // Dolphin's WIARVZFileReader verifies that m_file.GetSize() matches wia_file_size in the header.
+                // Override node_ops.getattr on this node so fstat returns the exact virtual disc size.
+                const origGetattr = node.node_ops.getattr;
+                node.node_ops = Object.assign({}, node.node_ops, {
+                    getattr: (n) => {
+                        const attr = origGetattr(n);
+                        attr.size = node.usedBytes;
+                        return attr;
+                    }
+                });
 
                 // In WebGPU mode, keep single-threaded (0) to preserve swapchain thread affinity;
                 // in Software mode, run dual-core (1) so the CPU and rasterizer run in parallel pthreads.
@@ -244,12 +263,13 @@ function setupPortB() {
 
                 if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
-                const discPathPtr = cPath(dolphinCore, '/vfs/game.iso');
+                const discPathPtr = cPath(dolphinCore, fileName);
                 const bootRc = dolphinCore._BootDisc(discPathPtr);
                 dolphinCore._free(discPathPtr);
 
                 const coreTitle = dolphinCore.UTF8ToString(dolphinCore._GetCoreTitle());
                 const coreStatus = dolphinCore.UTF8ToString(dolphinCore._GetCoreStatus());
+                console.log(`[emu_worker] Boot result: rc=${bootRc} title="${coreTitle}" status="${coreStatus}"`);
 
                 self.postMessage({
                     type: 'EMU_BOOTED',
@@ -278,17 +298,17 @@ function pumpEmuLoop() {
     try {
         dolphinCore._PumpHostJobs();
 
-        // Only transfer and post frame when in Software mode and Dolphin has rendered a new frame
+        // Render frame whenever Dolphin has rendered a new frame
         const currentFrame = dolphinCore._GetFrame ? dolphinCore._GetFrame() : 0;
-        if (!gpuDevice && currentFrame !== lastCoreFrame) {
+        if (currentFrame !== lastCoreFrame) {
             lastCoreFrame = currentFrame;
             const now = performance.now();
             // Cap frame dispatch to display refresh rate (~60 Hz) to avoid worker message saturation
             if (now - lastFramePostTime >= 15) {
                 lastFramePostTime = now;
-                const w = dolphinCore._FrameWidth();
-                const h = dolphinCore._FrameHeight();
-                const ptr = dolphinCore._FrameBuffer();
+                const w = dolphinCore._FrameWidth ? dolphinCore._FrameWidth() : 0;
+                const h = dolphinCore._FrameHeight ? dolphinCore._FrameHeight() : 0;
+                const ptr = dolphinCore._FrameBuffer ? dolphinCore._FrameBuffer() : 0;
 
                 if (w > 0 && h > 0 && ptr) {
                     if (ctx2d) {
@@ -299,11 +319,11 @@ function pumpEmuLoop() {
                         const frameClamped = new Uint8ClampedArray(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
                         const img = new ImageData(frameClamped, w, h);
                         ctx2d.putImageData(img, 0, 0);
-                        self.postMessage({ type: 'EMU_FRAME_DRAWN', width: w, height: h });
+                        self.postMessage({ type: 'EMU_FRAME_DRAWN', width: w, height: h, frame: currentFrame });
                     } else {
                         const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
                         self.postMessage(
-                            { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
+                            { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer, frame: currentFrame },
                             [frameBytes.buffer]
                         );
                     }

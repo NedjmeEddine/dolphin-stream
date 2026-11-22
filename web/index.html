@@ -933,7 +933,7 @@
                     <span id="emu-game-label" style="color: #94a3b8; font-size: 0.8rem;">GameCube / Wii</span>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <button id="btn-renderer" class="ui-btn ui-btn-secondary" title="Toggle Graphics Backend">GPU: Software</button>
+                    <button id="btn-renderer" class="ui-btn ui-btn-secondary" title="Toggle Graphics Backend">GPU: 2D Canvas (60 FPS)</button>
                     <button id="btn-aspect-ratio" class="ui-btn ui-btn-secondary" title="Toggle Aspect Ratio (4:3 / 16:9)">4:3</button>
                     <button id="btn-toggle-hud" class="ui-btn ui-btn-secondary">Toggle Memory HUD</button>
                     <button id="btn-return-menu" class="ui-btn ui-btn-secondary">Wii Menu</button>
@@ -967,11 +967,15 @@
         const clockAmPm = document.querySelector('.clock-ampm');
 
         let currentRenderer = localStorage.getItem('dolphin_renderer') || 'software';
+        if (currentRenderer === 'webgpu') {
+            currentRenderer = 'software';
+            localStorage.setItem('dolphin_renderer', 'software');
+        }
         if (btnRenderer) {
-            btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Fast)' : 'GPU: Software (Safe)';
+            btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Experimental)' : 'GPU: 2D Canvas (60 FPS)';
             btnRenderer.addEventListener('click', () => {
                 currentRenderer = currentRenderer === 'software' ? 'webgpu' : 'software';
-                btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Fast)' : 'GPU: Software (Safe)';
+                btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Experimental)' : 'GPU: 2D Canvas (60 FPS)';
                 localStorage.setItem('dolphin_renderer', currentRenderer);
                 soundEngine.playSelect();
             });
