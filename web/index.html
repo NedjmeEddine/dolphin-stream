@@ -1338,8 +1338,8 @@
             if (gamepadNav) gamepadNav.stop();
 
             const channel = new MessageChannel();
-            workerA = new Worker('emu_worker.js', { type: 'module' });
-            workerB = new Worker('worker_b.js', { type: 'module' });
+            workerA = new Worker('emu_worker.js?v=' + Date.now(), { type: 'module' });
+            workerB = new Worker('worker_b.js?v=' + Date.now(), { type: 'module' });
 
             function playPcm(pcmBuffer, frames, sampleRate = 48000) {
                 if (!pcmAudioCtx) {
