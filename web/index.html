@@ -952,7 +952,7 @@
         const soundEngine = createWiiSoundEngine();
 
         const emuViewport = document.getElementById('viewport-wrapper');
-        const emuCanvas = document.getElementById('emulator-canvas');
+        let emuCanvas = document.getElementById('emulator-canvas');
         const hudCanvas = document.getElementById('hud-canvas');
         const badgeIso = document.getElementById('badge-iso');
         const badgeController = document.getElementById('badge-controller');
@@ -1271,10 +1271,10 @@
         let gamepadRafId = null;
 
         function renderGameSplash(title, gameId, platform) {
-            const ctx = emuCanvas.getContext('2d');
+            const ctx = hudCanvas.getContext('2d');
             if (!ctx) return;
-            const w = emuCanvas.width;
-            const h = emuCanvas.height;
+            const w = hudCanvas.width || emuCanvas.width;
+            const h = hudCanvas.height || emuCanvas.height;
 
             ctx.fillStyle = '#080c14';
             ctx.fillRect(0, 0, w, h);
@@ -1378,7 +1378,16 @@
                     if (emuGameLabel && (emuTitle || gameTitle)) {
                         emuGameLabel.textContent = `${emuTitle || gameTitle} (${platform === 'wii' ? 'Wii' : 'GameCube'})`;
                     }
+                } else if (type === 'EMU_FRAME_DRAWN') {
+                    if (!showHud) {
+                        const hctx = hudCanvas.getContext('2d');
+                        if (hctx) hctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+                    }
                 } else if (type === 'EMU_FRAME') {
+                    if (!showHud) {
+                        const hctx = hudCanvas.getContext('2d');
+                        if (hctx) hctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+                    }
                     if (width && height && buffer) {
                         const ctx = emuCanvas.getContext('2d');
                         if (ctx) {
@@ -1402,18 +1411,18 @@
 
             const useGpu = currentRenderer === 'webgpu';
             let offscreen = null;
-            if (useGpu && emuCanvas && typeof emuCanvas.transferControlToOffscreen === 'function') {
+            if (emuCanvas && typeof emuCanvas.transferControlToOffscreen === 'function') {
                 try {
                     offscreen = emuCanvas.transferControlToOffscreen();
                 } catch (e) {
-                    console.warn('Canvas transfer failed, falling back to 2D:', e);
+                    console.warn('Canvas transfer failed, falling back to 2D postMessage:', e);
                 }
             }
 
             if (offscreen) {
-                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: true, canvas: offscreen }, [channel.port1, offscreen]);
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: useGpu, canvas: offscreen }, [channel.port1, offscreen]);
             } else {
-                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: false }, [channel.port1]);
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: useGpu }, [channel.port1]);
             }
             workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
             gamepadRafId = requestAnimationFrame(pollGameplayGamepad);
@@ -1502,11 +1511,9 @@
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
             if (gamepadNav) gamepadNav.start();
-            if (currentRenderer === 'webgpu') {
-                const freshCanvas = emuCanvas.cloneNode(false);
-                emuCanvas.replaceWith(freshCanvas);
-                emuCanvas = freshCanvas;
-            }
+            const freshCanvas = emuCanvas.cloneNode(false);
+            emuCanvas.replaceWith(freshCanvas);
+            emuCanvas = freshCanvas;
             emuViewport.style.display = 'none';
         }
 

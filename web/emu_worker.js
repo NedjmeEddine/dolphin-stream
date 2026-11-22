@@ -5,6 +5,7 @@ const SCRATCH_CAP = 4 * 1024 * 1024; // 4 MiB reusable read buffer
 let portB = null;
 let useWebGpu = false;
 let offscreenCanvas = null;
+let ctx2d = null;
 let gpuDevice = null;
 let vfsModule = null;
 let vfsMemory = null;
@@ -46,6 +47,14 @@ self.onmessage = async (e) => {
         portB = msg.port;
         useWebGpu = Boolean(msg.useWebGpu);
         offscreenCanvas = msg.canvas || null;
+        if (offscreenCanvas && !useWebGpu) {
+            try {
+                ctx2d = offscreenCanvas.getContext('2d');
+            } catch (err) {
+                console.warn('[emu_worker] offscreen 2d context failed, falling back to postMessage:', err);
+                ctx2d = null;
+            }
+        }
         setupPortB();
         return;
     }
@@ -281,11 +290,22 @@ function pumpEmuLoop() {
                 const ptr = dolphinCore._FrameBuffer();
 
                 if (w > 0 && h > 0 && ptr) {
-                    const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
-                    self.postMessage(
-                        { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
-                        [frameBytes.buffer]
-                    );
+                    if (ctx2d) {
+                        if (offscreenCanvas.width !== w || offscreenCanvas.height !== h) {
+                            offscreenCanvas.width = w;
+                            offscreenCanvas.height = h;
+                        }
+                        const frameClamped = new Uint8ClampedArray(dolphinCore.HEAPU8.buffer, ptr, w * h * 4);
+                        const img = new ImageData(frameClamped, w, h);
+                        ctx2d.putImageData(img, 0, 0);
+                        self.postMessage({ type: 'EMU_FRAME_DRAWN', width: w, height: h });
+                    } else {
+                        const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
+                        self.postMessage(
+                            { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
+                            [frameBytes.buffer]
+                        );
+                    }
                 }
             }
         }
