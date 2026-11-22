@@ -1096,8 +1096,12 @@
             if (gpuRenderer && typeof gpuRenderer.resize === 'function') {
                 gpuRenderer.resize(Math.floor(targetW), Math.floor(targetH));
             } else {
-                emuCanvas.width = currentAspect === '16:9' ? 854 : 640;
-                emuCanvas.height = 480;
+                try {
+                    emuCanvas.width = currentAspect === '16:9' ? 854 : 640;
+                    emuCanvas.height = 480;
+                } catch (_) {
+                    // Offscreen canvas width/height cannot be set directly from main thread
+                }
             }
 
             hudCanvas.width = wrapper.clientWidth;
@@ -1363,6 +1367,9 @@
                 const s = pcmAudioCtx.createBufferSource();
                 s.buffer = buf;
                 s.connect(pcmAudioCtx.destination);
+                s.onended = () => {
+                    try { s.disconnect(); } catch (_) {}
+                };
                 const now = pcmAudioCtx.currentTime;
                 // Clamp audio scheduling to a tight 25-120ms window to prevent drift or stutter
                 if (nextPcmTime < now || nextPcmTime > now + 0.12) {

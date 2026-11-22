@@ -40,6 +40,9 @@ export function createWiiSoundEngine(options = {}) {
 
         osc.start(t);
         osc.stop(t + 0.04);
+        osc.onended = () => {
+            try { gain.disconnect(); osc.disconnect(); } catch (_) {}
+        };
     }
 
     // Ascending harmonic channel select chime (classic Wii chime)
@@ -71,6 +74,9 @@ export function createWiiSoundEngine(options = {}) {
 
             osc.start(t + time);
             osc.stop(t + time + dur);
+            osc.onended = () => {
+                try { gain.disconnect(); osc.disconnect(); } catch (_) {}
+            };
         });
     }
 
@@ -96,6 +102,9 @@ export function createWiiSoundEngine(options = {}) {
 
         osc.start(t);
         osc.stop(t + 0.1);
+        osc.onended = () => {
+            try { gain.disconnect(); osc.disconnect(); } catch (_) {}
+        };
     }
 
     // Resonant shimmering disc chime
@@ -122,6 +131,9 @@ export function createWiiSoundEngine(options = {}) {
 
             osc.start(t + idx * 0.04);
             osc.stop(t + idx * 0.04 + 0.36);
+            osc.onended = () => {
+                try { gain.disconnect(); osc.disconnect(); } catch (_) {}
+            };
         });
     }
 

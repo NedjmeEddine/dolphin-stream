@@ -7,6 +7,7 @@ let useWebGpu = false;
 let offscreenCanvas = null;
 let ctx2d = null;
 let gpuDevice = null;
+let currentGameId = '';
 let vfsModule = null;
 let vfsMemory = null;
 let ctxPtr = 0;
@@ -45,6 +46,7 @@ self.onmessage = async (e) => {
 
     if (type === 'PORT') {
         portB = msg.port;
+        currentGameId = msg.gameId || '';
         useWebGpu = Boolean(msg.useWebGpu);
         offscreenCanvas = msg.canvas || null;
         if (offscreenCanvas && !useWebGpu) {
@@ -251,20 +253,18 @@ function setupPortB() {
                 dolphinCore._SetVideoBackend(backendPtr);
                 dolphinCore._free(backendPtr);
 
-                const cachedInterpPtr = cPath(dolphinCore, 'cached-interpreter');
-                dolphinCore._SetCpuCore(cachedInterpPtr);
-                dolphinCore._free(cachedInterpPtr);
+                // Enable WASM JIT tiering on PowerPC CPU core before initialization
+                if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
-                // Smooth 60 FPS console pacing with balanced 0.75x virtual CPU load
-                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.75);
+                // Dynamic CPU Clock: 1.0x native for GameCube (486 MHz), 0.75x for Wii (729 MHz)
+                const isGameCube = (currentGameId === 'ssbm' || discSize <= 2000000000);
+                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(isGameCube ? 1.0 : 0.75);
                 if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(1.0);
                 if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
                 if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
 
                 dolphinCore._CoreInit();
-
-                if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
                 const discPathPtr = cPath(dolphinCore, fileName);
                 const bootRc = dolphinCore._BootDisc(discPathPtr);
