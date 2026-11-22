@@ -1269,8 +1269,6 @@
         let pcmAudioCtx = null;
         let nextPcmTime = 0;
         let gamepadRafId = null;
-        let pendingFrameBitmap = null;
-        let currentFrameBitmap = null;
 
         function renderGameSplash(title, gameId, platform) {
             const ctx = emuCanvas.getContext('2d');
@@ -1312,6 +1310,8 @@
             ctx.fillStyle = '#94a3b8';
             ctx.font = '12px sans-serif';
             ctx.fillText('Streaming 256 KB blocks into 64 MB RAM cache (HTTP 206 / OPFS)', w / 2, h / 2 + 82);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('Booting CPU & unpacking disc assets...', w / 2, h / 2 + 104);
         }
 
         function launchGame(gameId, gameTitle, platform = 'gamecube') {
@@ -1332,8 +1332,6 @@
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
-            if (pendingFrameBitmap) { pendingFrameBitmap.close(); pendingFrameBitmap = null; }
-            if (currentFrameBitmap) { currentFrameBitmap.close(); currentFrameBitmap = null; }
             if (gamepadNav) gamepadNav.stop();
 
             const channel = new MessageChannel();
@@ -1362,7 +1360,10 @@
                 s.buffer = buf;
                 s.connect(pcmAudioCtx.destination);
                 const now = pcmAudioCtx.currentTime;
-                if (nextPcmTime < now) nextPcmTime = now;
+                // Clamp audio scheduling to a tight 25-120ms window to prevent drift or stutter
+                if (nextPcmTime < now || nextPcmTime > now + 0.12) {
+                    nextPcmTime = now + 0.025;
+                }
                 s.start(nextPcmTime);
                 nextPcmTime += buf.duration;
             }
@@ -1379,18 +1380,18 @@
                     }
                 } else if (type === 'EMU_FRAME') {
                     if (width && height && buffer) {
-                        createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
-                            .then(bmp => {
-                                if (pendingFrameBitmap) pendingFrameBitmap.close();
-                                pendingFrameBitmap = bmp;
-                            })
-                            .catch(() => {
-                                const ctx = emuCanvas.getContext('2d');
-                                if (ctx) {
+                        const ctx = emuCanvas.getContext('2d');
+                        if (ctx) {
+                            createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
+                                .then(bmp => {
+                                    ctx.drawImage(bmp, 0, 0, emuCanvas.width, emuCanvas.height);
+                                    bmp.close();
+                                })
+                                .catch(() => {
                                     const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
                                     ctx.putImageData(img, 0, 0);
-                                }
-                            });
+                                });
+                        }
                     }
                 } else if (type === 'EMU_AUDIO') {
                     if (pcm && frames) {
@@ -1500,8 +1501,6 @@
             if (workerB) { workerB.terminate(); workerB = null; }
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
-            if (pendingFrameBitmap) { pendingFrameBitmap.close(); pendingFrameBitmap = null; }
-            if (currentFrameBitmap) { currentFrameBitmap.close(); currentFrameBitmap = null; }
             if (gamepadNav) gamepadNav.start();
             if (currentRenderer === 'webgpu') {
                 const freshCanvas = emuCanvas.cloneNode(false);
@@ -1555,20 +1554,9 @@
             }
         });
 
-        // Live Gamepad polling and 60 Hz frame presentation loop during emulation
+        // Live Gamepad polling loop during emulation
         function pollGameplayGamepad() {
             if (emuViewport.style.display !== 'flex' || !workerA) return;
-
-            // Decoupled 60 Hz frame presentation: present latest visual frame synchronized with display refresh
-            if (pendingFrameBitmap) {
-                if (currentFrameBitmap) currentFrameBitmap.close();
-                currentFrameBitmap = pendingFrameBitmap;
-                pendingFrameBitmap = null;
-                const ctx = emuCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(currentFrameBitmap, 0, 0, emuCanvas.width, emuCanvas.height);
-                }
-            }
 
             const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
             for (let i = 0; i < gamepads.length; i++) {

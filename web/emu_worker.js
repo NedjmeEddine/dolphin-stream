@@ -15,6 +15,7 @@ let dolphinCore = null;
 let isRunning = false;
 let lastCoreFrame = -1;
 let lastAudioTime = 0;
+let lastFramePostTime = 0;
 
 const loopChannel = new MessageChannel();
 loopChannel.port1.onmessage = () => {
@@ -184,10 +185,9 @@ function setupPortB() {
                 dolphinCore._SetCpuCore(cachedInterpPtr);
                 dolphinCore._free(cachedInterpPtr);
 
-                // Maximum performance configuration for browser WASM:
-                // Native 1.0x clock speed ensures full-speed LZ/YAZ0 boot decompression
-                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(1.0);
-                if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(0.0);
+                // Smooth 60 FPS console pacing with balanced 0.75x virtual CPU load
+                if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(0.75);
+                if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(1.0);
                 if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
                 if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
@@ -234,16 +234,21 @@ function pumpEmuLoop() {
         const currentFrame = dolphinCore._GetFrame ? dolphinCore._GetFrame() : 0;
         if (!gpuDevice && currentFrame !== lastCoreFrame) {
             lastCoreFrame = currentFrame;
-            const w = dolphinCore._FrameWidth();
-            const h = dolphinCore._FrameHeight();
-            const ptr = dolphinCore._FrameBuffer();
+            const now = performance.now();
+            // Cap frame dispatch to display refresh rate (~60 Hz) to avoid worker message saturation
+            if (now - lastFramePostTime >= 15) {
+                lastFramePostTime = now;
+                const w = dolphinCore._FrameWidth();
+                const h = dolphinCore._FrameHeight();
+                const ptr = dolphinCore._FrameBuffer();
 
-            if (w > 0 && h > 0 && ptr) {
-                const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
-                self.postMessage(
-                    { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
-                    [frameBytes.buffer]
-                );
+                if (w > 0 && h > 0 && ptr) {
+                    const frameBytes = new Uint8Array(dolphinCore.HEAPU8.buffer, ptr, w * h * 4).slice();
+                    self.postMessage(
+                        { type: 'EMU_FRAME', width: w, height: h, buffer: frameBytes.buffer },
+                        [frameBytes.buffer]
+                    );
+                }
             }
         }
 
