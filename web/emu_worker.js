@@ -61,6 +61,9 @@ self.onmessage = async (e) => {
     }
 
     if (type === 'INPUT' && dolphinCore) {
+        if (dolphinCore._SetInputMask) {
+            dolphinCore._SetInputMask(msg.mask || 0);
+        }
         dolphinCore._SetInputState(
             msg.mask || 0,
             msg.stickX ?? 128,
