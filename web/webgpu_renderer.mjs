@@ -1,1 +1,0 @@
-../externals/vfs-streamer/client/web/webgpu_renderer.mjs

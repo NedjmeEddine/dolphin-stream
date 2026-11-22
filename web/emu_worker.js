@@ -295,6 +295,9 @@ function setupPortB() {
     };
 }
 
+let lastFpsLogTime = 0;
+let framesInSecond = 0;
+
 function pumpEmuLoop() {
     if (!isRunning || !dolphinCore) return;
 
@@ -306,7 +309,6 @@ function pumpEmuLoop() {
         if (currentFrame !== lastCoreFrame) {
             lastCoreFrame = currentFrame;
             const now = performance.now();
-            // Cap frame dispatch to display refresh rate (~60 Hz) to avoid worker message saturation
             if (now - lastFramePostTime >= 15) {
                 lastFramePostTime = now;
                 const w = dolphinCore._FrameWidth ? dolphinCore._FrameWidth() : 0;

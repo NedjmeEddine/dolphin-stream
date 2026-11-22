@@ -948,7 +948,6 @@
         import { createHudOverlay } from './hud_overlay.mjs';
         import { createWiiSoundEngine } from './wii_audio.js';
         import { createGamepadNavigation } from './wii_input.js';
-        import { initWebGpuRenderer, createMockGpuRenderer } from './webgpu_renderer.mjs';
 
         const soundEngine = createWiiSoundEngine();
 
@@ -1068,14 +1067,6 @@
         let latestHudSnapshot = null;
         let opfsMode = 'PERSISTENT';
         let currentAspect = '4:3';
-        let gpuRenderer = null;
-
-        async function setupRenderer() {
-            if (!gpuRenderer) {
-                gpuRenderer = createMockGpuRenderer(emuCanvas);
-            }
-            return gpuRenderer;
-        }
 
         function resize() {
             const wrapper = emuViewport;
@@ -1093,15 +1084,11 @@
 
             emuCanvas.style.width = `${Math.floor(targetW)}px`;
             emuCanvas.style.height = `${Math.floor(targetH)}px`;
-            if (gpuRenderer && typeof gpuRenderer.resize === 'function') {
-                gpuRenderer.resize(Math.floor(targetW), Math.floor(targetH));
-            } else {
-                try {
-                    emuCanvas.width = currentAspect === '16:9' ? 854 : 640;
-                    emuCanvas.height = 480;
-                } catch (_) {
-                    // Offscreen canvas width/height cannot be set directly from main thread
-                }
+            try {
+                emuCanvas.width = currentAspect === '16:9' ? 854 : 640;
+                emuCanvas.height = 480;
+            } catch (_) {
+                // Offscreen canvas width/height cannot be set directly from main thread
             }
 
             hudCanvas.width = wrapper.clientWidth;
@@ -1235,6 +1222,7 @@
 
         // Keyboard navigation for 4x3 channel grid
         window.addEventListener('keydown', (e) => {
+            if (emuViewport && emuViewport.style.display === 'flex') return;
             if (bannerModal.style.display === 'flex') {
                 if (e.key === 'Escape') {
                     closeBanner();
@@ -1561,12 +1549,14 @@
         let currentInputMask = 0;
         window.addEventListener('keydown', (e) => {
             if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+                e.preventDefault();
                 currentInputMask |= keyMap[e.key];
                 if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
             }
         });
         window.addEventListener('keyup', (e) => {
             if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+                e.preventDefault();
                 currentInputMask &= ~keyMap[e.key];
                 if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
             }
