@@ -144,6 +144,9 @@ export function createWiiSoundEngine(options = {}) {
         playDisc,
         isMuted: () => muted,
         setMuted: (val) => { muted = Boolean(val); },
-        setVolume: (val) => { masterVolume = Math.max(0, Math.min(1, Number(val) || 0.5)); }
+        setVolume: (val) => {
+            const n = Number(val);
+            masterVolume = Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0.5));
+        }
     };
 }

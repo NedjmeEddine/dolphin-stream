@@ -967,10 +967,6 @@
         const clockAmPm = document.querySelector('.clock-ampm');
 
         let currentRenderer = localStorage.getItem('dolphin_renderer') || 'software';
-        if (currentRenderer === 'webgpu') {
-            currentRenderer = 'software';
-            localStorage.setItem('dolphin_renderer', 'software');
-        }
         if (btnRenderer) {
             btnRenderer.textContent = currentRenderer === 'webgpu' ? 'GPU: WebGPU (Experimental)' : 'GPU: 2D Canvas (60 FPS)';
             btnRenderer.addEventListener('click', () => {
@@ -996,7 +992,7 @@
         let savedChannelIndex = 0;
 
         function openBanner(slot) {
-            selectedGameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
+            selectedGameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'default' : null);
             if (!selectedGameId) return;
 
             const badge = slot.querySelector('.game-badge');
@@ -1066,6 +1062,7 @@
         let showHud = true;
         let latestHudSnapshot = null;
         let opfsMode = 'PERSISTENT';
+        let activePoolMb = 64;
         let currentAspect = '4:3';
 
         function resize() {
@@ -1159,29 +1156,32 @@
             soundEngine.playHover();
         });
 
-        // Check range server / ISO availability
-        fetch('/manifest.bin', { headers: { 'Range': 'bytes=0-0' } })
-            .then(res => {
-                if (res.status === 206 || res.status === 200) {
-                    badgeIso.textContent = "Streaming Ready";
-                    badgeIso.className = "badge ok";
-                } else {
-                    badgeIso.textContent = `Offline (${res.status})`;
-                    badgeIso.className = "badge warn";
-                }
-            })
-            .catch(() => {
-                badgeIso.textContent = "Standalone Mode";
-                badgeIso.className = "badge warn";
-            });
+        // Check catalog and range server availability
+        const navPrev = document.getElementById('nav-page-prev');
+        const navNext = document.getElementById('nav-page-next');
+        if (navPrev) navPrev.style.display = 'none';
+        if (navNext) navNext.style.display = 'none';
 
-        // Dynamic catalog loader with static channel fallback
         fetch('/games.json')
             .then(res => res.ok ? res.json() : null)
             .then(cat => {
-                if (!cat || !cat.games) return;
+                if (!cat || !cat.games || cat.games.length === 0) {
+                    return fetch('/manifest.bin', { headers: { 'Range': 'bytes=0-0' } })
+                        .then(res => {
+                            if (res.status === 206 || res.status === 200) {
+                                badgeIso.textContent = "Streaming Ready";
+                                badgeIso.className = "badge ok";
+                            } else {
+                                badgeIso.textContent = `Offline (${res.status})`;
+                                badgeIso.className = "badge warn";
+                            }
+                        });
+                }
+
+                badgeIso.textContent = "Streaming Ready";
+                badgeIso.className = "badge ok";
+
                 if (cat.games.length === 1 && cat.games[0].id === 'default') {
-                    // Single-game synthesized catalog attaches to Disc Channel (slot 0)
                     const discSlot = channelSlots[0];
                     if (discSlot) {
                         discSlot.dataset.gameId = 'default';
@@ -1191,21 +1191,46 @@
                     }
                     return;
                 }
-                cat.games.forEach((g, idx) => {
-                    const slot = channelSlots[idx + 1]; // slots 1..11
-                    if (!slot) return;
+
+                // Point Disc Channel at first catalog entry so clicking it always boots a valid pack
+                if (channelSlots[0] && cat.games[0]) {
+                    channelSlots[0].dataset.gameId = cat.games[0].id;
+                    channelSlots[0].dataset.platform = cat.games[0].platform || 'gamecube';
+                }
+
+                for (let idx = 0; idx < channelSlots.length - 1; idx++) {
+                    const slot = channelSlots[idx + 1];
+                    const g = cat.games[idx];
+                    if (!g) {
+                        slot.classList.add('channel-empty');
+                        delete slot.dataset.gameId;
+                        delete slot.dataset.platform;
+                        const badgeEl = slot.querySelector('.game-badge');
+                        if (badgeEl) badgeEl.remove();
+                        const prev = slot.querySelector('.channel-preview');
+                        if (prev) prev.innerHTML = '<div class="empty-grid-pattern"></div>';
+                        const titleEl = slot.querySelector('.channel-title');
+                        if (titleEl) titleEl.textContent = 'Empty';
+                        continue;
+                    }
+
+                    slot.classList.remove('channel-empty');
                     slot.dataset.gameId = g.id;
                     slot.dataset.platform = g.platform || 'gamecube';
                     const titleEl = slot.querySelector('.channel-title');
                     if (titleEl && g.title) titleEl.textContent = g.title;
-                    const badgeEl = slot.querySelector('.game-badge');
-                    if (badgeEl && g.platform) {
-                        badgeEl.textContent = g.platform === 'wii' ? 'WII' : 'GC';
-                        badgeEl.className = `game-badge ${g.platform === 'wii' ? 'badge-wii' : 'badge-gc'}`;
+
+                    let badgeEl = slot.querySelector('.game-badge');
+                    if (!badgeEl) {
+                        badgeEl = document.createElement('span');
+                        slot.insertBefore(badgeEl, slot.querySelector('.channel-preview'));
                     }
-                    if (g.cover) {
-                        const prev = slot.querySelector('.channel-preview');
-                        if (prev) {
+                    badgeEl.textContent = g.platform === 'wii' ? 'WII' : 'GC';
+                    badgeEl.className = `game-badge ${g.platform === 'wii' ? 'badge-wii' : 'badge-gc'}`;
+
+                    const prev = slot.querySelector('.channel-preview');
+                    if (prev) {
+                        if (g.cover) {
                             let img = prev.querySelector('.channel-cover');
                             if (!img) {
                                 img = document.createElement('img');
@@ -1214,11 +1239,17 @@
                                 prev.appendChild(img);
                             }
                             img.src = g.cover;
+                        } else {
+                            const icon = g.id === 'ssbm' ? '⚔️' : (g.id === 'mkwii' ? '🏎️' : (g.platform === 'wii' ? '💿' : '🎮'));
+                            prev.innerHTML = `<div class="channel-placeholder"><span class="placeholder-icon">${icon}</span></div>`;
                         }
                     }
-                });
+                }
             })
-            .catch(() => {});
+            .catch(() => {
+                badgeIso.textContent = "Standalone Mode";
+                badgeIso.className = "badge warn";
+            });
 
         // Keyboard navigation for 4x3 channel grid
         window.addEventListener('keydown', (e) => {
@@ -1327,13 +1358,17 @@
             // Terminate previous session workers and cancel input loops if switching games
             if (workerA) { workerA.terminate(); workerA = null; }
             if (workerB) { workerB.terminate(); workerB = null; }
+            if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
+            nextPcmTime = 0;
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
             if (gamepadNav) gamepadNav.stop();
+            pressedCodes.clear();
+            lastSentInput = '';
 
             const channel = new MessageChannel();
-            workerA = new Worker('emu_worker.js?v=' + Date.now(), { type: 'module' });
+            workerA = new Worker('emu_worker.js', { type: 'module' });
             window._workerA = workerA;
-            workerB = new Worker('worker_b.js?v=' + Date.now(), { type: 'module' });
+            workerB = new Worker('worker_b.js', { type: 'module' });
 
             function playPcm(pcmBuffer, frames, sampleRate = 48000) {
                 if (!pcmAudioCtx) {
@@ -1369,14 +1404,19 @@
             }
 
             workerA.onmessage = (e) => {
-                const { type, ok, title: emuTitle, width, height, buffer, pcm, frames, rate, backend } = e.data || {};
+                const { type, ok, title: emuTitle, status: emuStatus, width, height, buffer, pcm, frames, rate, backend } = e.data || {};
                 if (type === 'EMU_BOOTED') {
                     if (badgeIso) {
-                        badgeIso.textContent = ok ? `Running (${backend || '2D'})` : "Boot Failed";
+                        badgeIso.textContent = ok ? `Running (${backend || '2D'})` : `Boot Failed: ${emuStatus || 'error'}`;
                         badgeIso.className = ok ? "badge ok" : "badge warn";
                     }
                     if (emuGameLabel && (emuTitle || gameTitle)) {
                         emuGameLabel.textContent = `${emuTitle || gameTitle} (${platform === 'wii' ? 'Wii' : 'GameCube'})`;
+                    }
+                } else if (type === 'BUILD_ROTATED') {
+                    if (badgeIso) {
+                        badgeIso.textContent = "Build Updated — Reload";
+                        badgeIso.className = "badge warn";
                     }
                 } else if (type === 'EMU_FRAME_DRAWN') {
                     if (!showHud) {
@@ -1384,21 +1424,27 @@
                         if (hctx) hctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
                     }
                 } else if (type === 'EMU_FRAME') {
+                    if (offscreen) return;
                     if (!showHud) {
                         const hctx = hudCanvas.getContext('2d');
                         if (hctx) hctx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
                     }
                     if (width && height && buffer) {
-                        const ctx = emuCanvas.getContext('2d');
+                        const targetCanvas = emuCanvas;
+                        const ctx = targetCanvas.getContext('2d');
                         if (ctx) {
                             createImageBitmap(new ImageData(new Uint8ClampedArray(buffer), width, height))
                                 .then(bmp => {
-                                    ctx.drawImage(bmp, 0, 0, emuCanvas.width, emuCanvas.height);
+                                    if (emuCanvas === targetCanvas) {
+                                        ctx.drawImage(bmp, 0, 0, targetCanvas.width, targetCanvas.height);
+                                    }
                                     bmp.close();
                                 })
                                 .catch(() => {
-                                    const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
-                                    ctx.putImageData(img, 0, 0);
+                                    if (emuCanvas === targetCanvas) {
+                                        const img = new ImageData(new Uint8ClampedArray(buffer), width, height);
+                                        ctx.putImageData(img, 0, 0);
+                                    }
                                 });
                         }
                     }
@@ -1420,9 +1466,9 @@
             }
 
             if (offscreen) {
-                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: useGpu, canvas: offscreen }, [channel.port1, offscreen]);
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, platform, useWebGpu: useGpu, canvas: offscreen }, [channel.port1, offscreen]);
             } else {
-                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, useWebGpu: useGpu }, [channel.port1]);
+                workerA.postMessage({ type: 'PORT', port: channel.port1, gameId, platform, useWebGpu: useGpu }, [channel.port1]);
             }
             workerB.postMessage({ type: 'PORT', port: channel.port2, gameId }, [channel.port2]);
             gamepadRafId = requestAnimationFrame(pollGameplayGamepad);
@@ -1435,16 +1481,22 @@
                         hud.render(latestHudSnapshot, {
                             storageMode: opfsMode,
                             gpuStatus: currentRenderer === 'webgpu' ? 'Direct WebGPU' : 'Dual-Core Rasterizer',
-                            vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : 'Unified Slab (64 MB)'
+                            vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : `Unified Slab (${activePoolMb} MB)`
                         });
                     }
                 } else if (type === 'STATUS') {
                     if (mode) opfsMode = mode;
+                    if (effectivePoolMB) activePoolMb = effectivePoolMB;
                     if (badgeStream && effectivePoolMB) {
                         badgeStream.textContent = `${effectivePoolMB} MB RAM Pool (${opfsMode})`;
                     }
                     workerB.postMessage({ type: 'ENABLE_HUD', enabled: true });
-                } else if (type === 'ERROR') {
+                } else if (type === 'BUILD_ROTATED') {
+                    if (badgeIso) {
+                        badgeIso.textContent = "Build Updated — Reload";
+                        badgeIso.className = "badge warn";
+                    }
+                } else if (type === 'FATAL' || type === 'ERROR') {
                     console.error("Worker error:", reason);
                     if (badgeIso) {
                         badgeIso.textContent = `Worker Err: ${reason}`;
@@ -1455,7 +1507,9 @@
         }
 
         const flushTelem = (r) => { if (workerB) workerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: r }); };
-        document.addEventListener('visibilitychange', () => flushTelem('pagehide'));
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') flushTelem('pagehide');
+        });
         window.addEventListener('pagehide', () => flushTelem('pagehide'));
 
         // Attach selection & hover sound listeners to channel slots
@@ -1468,7 +1522,7 @@
                 }
             });
             slot.addEventListener('click', () => {
-                const gameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'disc' : null);
+                const gameId = slot.dataset.gameId || (slot.id === 'disc-channel' ? 'default' : null);
                 if (gameId) {
                     openBanner(slot);
                 }
@@ -1498,17 +1552,35 @@
                 hud.render(latestHudSnapshot, {
                     storageMode: opfsMode,
                     gpuStatus: currentRenderer === 'webgpu' ? 'Direct WebGPU' : 'Dual-Core Rasterizer',
-                    vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : 'Unified Slab (64 MB)'
+                    vramLabel: currentRenderer === 'webgpu' ? 'Direct WebGPU VRAM' : `Unified Slab (${activePoolMb} MB)`
                 });
             }
         });
 
         function exitToMenu() {
             soundEngine.playCancel();
-            flushTelem('menu');
+            pressedCodes.clear();
+            lastSentInput = '';
             if (workerA) { workerA.terminate(); workerA = null; }
-            if (workerB) { workerB.terminate(); workerB = null; }
+            const oldWorkerB = workerB;
+            workerB = null;
+            if (oldWorkerB) {
+                const prevHandler = oldWorkerB.onmessage;
+                let done = false;
+                const finishTerminate = () => {
+                    if (done) return;
+                    done = true;
+                    oldWorkerB.terminate();
+                };
+                oldWorkerB.onmessage = (ev) => {
+                    if (ev.data?.type === 'TELEM_FLUSHED') finishTerminate();
+                    else if (prevHandler) prevHandler(ev);
+                };
+                oldWorkerB.postMessage({ type: 'FLUSH_TELEMETRY', reason: 'menu' });
+                setTimeout(finishTerminate, 150);
+            }
             if (pcmAudioCtx) { pcmAudioCtx.close().catch(() => {}); pcmAudioCtx = null; }
+            nextPcmTime = 0;
             if (gamepadRafId) { cancelAnimationFrame(gamepadRafId); gamepadRafId = null; }
             if (gamepadNav) gamepadNav.start();
             const freshCanvas = emuCanvas.cloneNode(false);
@@ -1527,87 +1599,131 @@
             }
         });
 
-        // GameCube controller keyboard input forwarding
-        const BTN_A     = (1 << 0) | 0x0100 | (1 << 4) | 0x1000;
-        const BTN_B     = (1 << 1) | 0x0200;
-        const BTN_X     = (1 << 2) | 0x0400;
-        const BTN_Y     = (1 << 3) | 0x0800;
-        const BTN_START = (1 << 4) | 0x1000 | (1 << 0) | 0x0100;
-        const BTN_L     = 1 << 5;
-        const BTN_R     = 1 << 6;
-        const BTN_Z     = 1 << 7;
+        // GameCube controller keyboard & gamepad input forwarding (non-overlapping bits)
+        const BTN_A      = 1 << 0;
+        const BTN_B      = 1 << 1;
+        const BTN_X      = 1 << 2;
+        const BTN_Y      = 1 << 3;
+        const BTN_START  = 1 << 4;
+        const BTN_L      = 1 << 5;
+        const BTN_R      = 1 << 6;
+        const BTN_Z      = 1 << 7;
+        const DPAD_UP    = 1 << 8;
+        const DPAD_DOWN  = 1 << 9;
+        const DPAD_LEFT  = 1 << 10;
+        const DPAD_RIGHT = 1 << 11;
+        const STICK_UP   = 1 << 12;
+        const STICK_DOWN = 1 << 13;
+        const STICK_LEFT = 1 << 14;
+        const STICK_RIGHT = 1 << 15;
 
-        const keyMap = {
-            'x': BTN_A, 'X': BTN_A, ' ': BTN_A, 'Space': BTN_A, 'k': BTN_A, 'K': BTN_A,   // A (Select / Jump)
-            'z': BTN_B, 'Z': BTN_B, 'j': BTN_B, 'J': BTN_B,                               // B (Cancel / Attack)
-            'v': BTN_X, 'V': BTN_X,                                                       // X
-            'b': BTN_Y, 'B': BTN_Y,                                                       // Y
-            'Enter': BTN_START,                                                            // Start / Pause
-            'q': BTN_L, 'Q': BTN_L,                                       // L trigger
-            'e': BTN_R, 'E': BTN_R,                                       // R trigger
-            'c': BTN_Z, 'C': BTN_Z,                                       // Z button
-            'ArrowUp': 1 << 8,                                            // D-Pad Up
-            'ArrowDown': 1 << 9,                                          // D-Pad Down
-            'ArrowLeft': 1 << 10,                                         // D-Pad Left
-            'ArrowRight': 1 << 11,                                        // D-Pad Right
-            'w': 1 << 12, 'W': 1 << 12, // Main Stick Up
-            's': 1 << 13, 'S': 1 << 13, // Main Stick Down
-            'a': 1 << 14, 'A': 1 << 14, // Main Stick Left
-            'd': 1 << 15, 'D': 1 << 15  // Main Stick Right
+        const codeMap = {
+            'KeyX': BTN_A, 'Space': BTN_A, 'KeyK': BTN_A,
+            'KeyZ': BTN_B, 'KeyJ': BTN_B,
+            'KeyV': BTN_X,
+            'KeyB': BTN_Y,
+            'Enter': BTN_START,
+            'KeyQ': BTN_L,
+            'KeyE': BTN_R,
+            'KeyC': BTN_Z,
+            'ArrowUp': DPAD_UP,
+            'ArrowDown': DPAD_DOWN,
+            'ArrowLeft': DPAD_LEFT,
+            'ArrowRight': DPAD_RIGHT,
+            'KeyW': STICK_UP,
+            'KeyS': STICK_DOWN,
+            'KeyA': STICK_LEFT,
+            'KeyD': STICK_RIGHT
         };
 
-        let currentInputMask = 0;
+        const pressedCodes = new Set();
+        let lastSentInput = '';
+
+        function clampByte(v) {
+            return Number.isFinite(v) ? Math.max(0, Math.min(255, Math.round(v))) : 128;
+        }
+
+        function computeKeyboardState() {
+            let mask = 0;
+            for (const code of pressedCodes) mask |= codeMap[code] || 0;
+            let sx = 128;
+            let sy = 128;
+            if (mask & STICK_LEFT) sx -= 96;
+            if (mask & STICK_RIGHT) sx += 96;
+            if (mask & STICK_UP) sy += 96;
+            if (mask & STICK_DOWN) sy -= 96;
+            return { mask, stickX: sx, stickY: sy };
+        }
+
+        function sendInput(mask, stickX = 128, stickY = 128, cStickX = 128, cStickY = 128) {
+            if (!workerA) return;
+            const key = `${mask},${stickX},${stickY},${cStickX},${cStickY}`;
+            if (key === lastSentInput) return;
+            lastSentInput = key;
+            workerA.postMessage({ type: 'INPUT', mask, stickX, stickY, cStickX, cStickY });
+        }
+
         window.addEventListener('keydown', (e) => {
-            if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+            if (emuViewport.style.display === 'flex' && codeMap[e.code] !== undefined) {
                 e.preventDefault();
-                currentInputMask |= keyMap[e.key];
-                if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
+                pressedCodes.add(e.code);
+                const kb = computeKeyboardState();
+                sendInput(kb.mask, kb.stickX, kb.stickY);
             }
         });
         window.addEventListener('keyup', (e) => {
-            if (emuViewport.style.display === 'flex' && keyMap[e.key] !== undefined) {
+            if (emuViewport.style.display === 'flex' && codeMap[e.code] !== undefined) {
                 e.preventDefault();
-                currentInputMask &= ~keyMap[e.key];
-                if (workerA) workerA.postMessage({ type: 'INPUT', mask: currentInputMask });
+                pressedCodes.delete(e.code);
+                const kb = computeKeyboardState();
+                sendInput(kb.mask, kb.stickX, kb.stickY);
             }
         });
+        window.addEventListener('blur', () => {
+            if (pressedCodes.size > 0) {
+                pressedCodes.clear();
+                sendInput(0, 128, 128);
+            }
+        });
+
+        function applyDeadzone(v, dz = 0.15) {
+            return (Number.isFinite(v) && Math.abs(v) >= dz) ? v : 0;
+        }
 
         // Live Gamepad polling loop during emulation
         function pollGameplayGamepad() {
             if (emuViewport.style.display !== 'flex' || !workerA) return;
 
+            const kb = computeKeyboardState();
             const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
             for (let i = 0; i < gamepads.length; i++) {
                 const gp = gamepads[i];
                 if (gp && gp.connected) {
                     let gpMask = 0;
-                    if (gp.buttons[0]?.pressed) gpMask |= BTN_A;     // A
-                    if (gp.buttons[1]?.pressed) gpMask |= BTN_B;     // B
-                    if (gp.buttons[2]?.pressed) gpMask |= BTN_X;     // X
-                    if (gp.buttons[3]?.pressed) gpMask |= BTN_Y;     // Y
-                    if (gp.buttons[9]?.pressed) gpMask |= BTN_START; // Start
-                    if (gp.buttons[4]?.pressed || gp.buttons[6]?.pressed) gpMask |= BTN_L; // L
-                    if (gp.buttons[5]?.pressed || gp.buttons[7]?.pressed) gpMask |= BTN_R; // R
-                    if (gp.buttons[8]?.pressed) gpMask |= BTN_Z;     // Z
-                    if (gp.buttons[12]?.pressed) gpMask |= 1 << 8;   // D_UP
-                    if (gp.buttons[13]?.pressed) gpMask |= 1 << 9;   // D_DOWN
-                    if (gp.buttons[14]?.pressed) gpMask |= 1 << 10;  // D_LEFT
-                    if (gp.buttons[15]?.pressed) gpMask |= 1 << 11;  // D_RIGHT
+                    if (gp.buttons[0]?.pressed) gpMask |= BTN_A;
+                    if (gp.buttons[1]?.pressed) gpMask |= BTN_B;
+                    if (gp.buttons[2]?.pressed) gpMask |= BTN_X;
+                    if (gp.buttons[3]?.pressed) gpMask |= BTN_Y;
+                    if (gp.buttons[9]?.pressed) gpMask |= BTN_START;
+                    if (gp.buttons[4]?.pressed || gp.buttons[6]?.pressed) gpMask |= BTN_L;
+                    if (gp.buttons[5]?.pressed || gp.buttons[7]?.pressed) gpMask |= BTN_R;
+                    if (gp.buttons[8]?.pressed) gpMask |= BTN_Z;
+                    if (gp.buttons[12]?.pressed) gpMask |= DPAD_UP;
+                    if (gp.buttons[13]?.pressed) gpMask |= DPAD_DOWN;
+                    if (gp.buttons[14]?.pressed) gpMask |= DPAD_LEFT;
+                    if (gp.buttons[15]?.pressed) gpMask |= DPAD_RIGHT;
 
                     const [ax0 = 0, ax1 = 0, ax2 = 0, ax3 = 0] = gp.axes;
-                    const stickX = Math.round(128 + ax0 * 96);
-                    const stickY = Math.round(128 - ax1 * 96);
-                    const cStickX = Math.round(128 + ax2 * 96);
-                    const cStickY = Math.round(128 - ax3 * 96);
+                    const gx = applyDeadzone(ax0);
+                    const gy = applyDeadzone(ax1);
+                    const cx = applyDeadzone(ax2);
+                    const cy = applyDeadzone(ax3);
+                    const stickX = (gx !== 0) ? clampByte(128 + gx * 96) : kb.stickX;
+                    const stickY = (gy !== 0) ? clampByte(128 - gy * 96) : kb.stickY;
+                    const cStickX = clampByte(128 + cx * 96);
+                    const cStickY = clampByte(128 - cy * 96);
 
-                    workerA.postMessage({
-                        type: 'INPUT',
-                        mask: currentInputMask | gpMask,
-                        stickX,
-                        stickY,
-                        cStickX,
-                        cStickY
-                    });
+                    sendInput(kb.mask | gpMask, stickX, stickY, cStickX, cStickY);
                     break;
                 }
             }
