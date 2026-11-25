@@ -82,4 +82,10 @@ test('2.2: Wii Web Audio Sound Engine', async (t) => {
 
     soundEngine.setMuted(false);
     assert.equal(soundEngine.isMuted(), false, 'Engine must report unmuted');
+
+    // Test setVolume(0) actually sets volume to 0 rather than falling back to 0.5
+    const oscCountBeforeZero = mockCtx.oscillators.length;
+    soundEngine.setVolume(0);
+    soundEngine.playHover();
+    assert.equal(mockCtx.oscillators.length, oscCountBeforeZero, 'setVolume(0) must create no oscillators');
 });

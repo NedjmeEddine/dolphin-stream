@@ -20,7 +20,7 @@ export function createWiiSoundEngine(options = {}) {
 
     // Soft cursor hover tick
     function playHover() {
-        if (muted) return;
+        if (muted || masterVolume <= 0) return;
         const ac = getContext();
         if (!ac) return;
 
@@ -47,7 +47,7 @@ export function createWiiSoundEngine(options = {}) {
 
     // Ascending harmonic channel select chime (classic Wii chime)
     function playSelect() {
-        if (muted) return;
+        if (muted || masterVolume <= 0) return;
         const ac = getContext();
         if (!ac) return;
 
@@ -82,7 +82,7 @@ export function createWiiSoundEngine(options = {}) {
 
     // Downward cancel / back blip
     function playCancel() {
-        if (muted) return;
+        if (muted || masterVolume <= 0) return;
         const ac = getContext();
         if (!ac) return;
 
@@ -109,7 +109,7 @@ export function createWiiSoundEngine(options = {}) {
 
     // Resonant shimmering disc chime
     function playDisc() {
-        if (muted) return;
+        if (muted || masterVolume <= 0) return;
         const ac = getContext();
         if (!ac) return;
 
