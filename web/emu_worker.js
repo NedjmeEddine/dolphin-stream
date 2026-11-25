@@ -8,6 +8,7 @@ let offscreenCanvas = null;
 let ctx2d = null;
 let gpuDevice = null;
 let currentGameId = '';
+let discPlatform = '';
 let vfsModule = null;
 let vfsMemory = null;
 let ctxPtr = 0;
@@ -47,17 +48,9 @@ self.onmessage = async (e) => {
     if (type === 'PORT') {
         portB = msg.port;
         currentGameId = msg.gameId || '';
+        discPlatform = msg.platform || '';
         useWebGpu = Boolean(msg.useWebGpu);
         offscreenCanvas = msg.canvas || null;
-        if (offscreenCanvas && !useWebGpu) {
-            try {
-                ctx2d = offscreenCanvas.getContext('2d');
-                console.log('[emu_worker] offscreen 2d context initialized successfully');
-            } catch (err) {
-                console.warn('[emu_worker] offscreen 2d context failed, falling back to postMessage:', err);
-                ctx2d = null;
-            }
-        }
         setupPortB();
         return;
     }
@@ -93,16 +86,22 @@ function setupPortB() {
     portB.onmessage = async (e) => {
         const { type, manifestHeaderBytes, effectivePoolMB, arenaBytes } = e.data || {};
         if (type === 'GEOMETRY') {
+            let arenaReady = false;
             try {
                 const arenaPages = Math.ceil(arenaBytes / 65536);
                 const initialPages = 1024 + arenaPages;
                 const maximumPages = Math.min(65536, initialPages + 4096);
 
-                vfsMemory = new WebAssembly.Memory({
-                    initial: initialPages,
-                    maximum: maximumPages,
-                    shared: true
-                });
+                try {
+                    vfsMemory = new WebAssembly.Memory({
+                        initial: initialPages,
+                        maximum: maximumPages,
+                        shared: true
+                    });
+                } catch (memErr) {
+                    portB.postMessage({ type: 'RETRY_SMALLER_POOL', reason: memErr.message });
+                    return;
+                }
 
                 vfsModule = await createVfsModule({ wasmMemory: vfsMemory });
 
@@ -115,7 +114,8 @@ function setupPortB() {
                 const hdrPtr = vfsModule._malloc(32);
                 new Uint8Array(vfsMemory.buffer, hdrPtr, 32).set(manifestHeaderBytes);
 
-                ctxPtr = vfsModule._malloc(64);
+                const ctxSize = vfsModule._vfs_client_ctx_size ? Number(vfsModule._vfs_client_ctx_size()) : 64;
+                ctxPtr = vfsModule._malloc(ctxSize);
                 const rc = vfsModule._vfs_init_arena(ctxPtr, arenaPtr, hdrPtr);
                 vfsModule._free(hdrPtr);
 
@@ -135,8 +135,9 @@ function setupPortB() {
                     wasmMemory: vfsMemory,
                     arenaOffset: arenaPtr
                 });
+                arenaReady = true;
 
-                // Initialize WebGPU if requested and supported
+                // Initialize WebGPU if requested and supported; fall back cleanly to 2D OffscreenCanvas
                 if (useWebGpu && typeof navigator !== 'undefined' && navigator.gpu) {
                     try {
                         const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
@@ -145,28 +146,35 @@ function setupPortB() {
                             if (adapter.features && adapter.features.has('dual-source-blending')) {
                                 requiredFeatures.push('dual-source-blending');
                             }
-                            gpuDevice = await adapter.requestDevice({ requiredFeatures });
-
-                            if (gpuDevice) {
-                                gpuDevice.addEventListener('uncapturederror', (e) => {
-                                    console.error('[WebGPU Error]', e.error?.message || e.error);
+                            const dev = await adapter.requestDevice({ requiredFeatures });
+                            if (dev) {
+                                gpuDevice = dev;
+                                gpuDevice.addEventListener('uncapturederror', (ev) => {
+                                    console.error('[WebGPU Error]', ev.error?.message || ev.error);
                                 });
                                 gpuDevice.lost.then((info) => {
                                     console.warn('[WebGPU Device Lost]', info.message, info.reason);
                                 });
-                            }
-
-                            if (offscreenCanvas) {
-                                const gpuCtx = offscreenCanvas.getContext('webgpu');
-                                if (gpuCtx) {
-                                    const format = navigator.gpu.getPreferredCanvasFormat();
-                                    gpuCtx.configure({ device: gpuDevice, format, alphaMode: 'opaque' });
+                                if (offscreenCanvas) {
+                                    const gpuCtx = offscreenCanvas.getContext('webgpu');
+                                    if (gpuCtx) {
+                                        const format = navigator.gpu.getPreferredCanvasFormat();
+                                        gpuCtx.configure({ device: gpuDevice, format, alphaMode: 'opaque' });
+                                    }
                                 }
                             }
                         }
                     } catch (gpuErr) {
                         console.warn('[emu_worker] WebGPU request failed, falling back to Software:', gpuErr);
                         gpuDevice = null;
+                    }
+                }
+                if (!gpuDevice && offscreenCanvas) {
+                    try {
+                        ctx2d = offscreenCanvas.getContext('2d');
+                    } catch (err) {
+                        console.warn('[emu_worker] offscreen 2d context failed, falling back to postMessage:', err);
+                        ctx2d = null;
                     }
                 }
 
@@ -195,13 +203,17 @@ function setupPortB() {
                         while (totalRead < length) {
                             const chunkLen = Math.min(length - totalRead, SCRATCH_CAP);
                             const t0 = performance.now();
-                            const n = vfsModule._vfs_read_sync(ctxPtr, BigInt(position + totalRead), scratchBufPtr, chunkLen);
+                            const n = Number(vfsModule._vfs_read_sync(ctxPtr, BigInt(position + totalRead), scratchBufPtr, chunkLen));
                             totalVfsWaitMs += (performance.now() - t0);
-                            if (n <= 0) break;
-                            const slice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, Number(n));
+                            if (n < 0) {
+                                if (n === -2) self.postMessage({ type: 'BUILD_ROTATED' });
+                                throw new dolphinCore.FS.ErrnoError(5); // EIO
+                            }
+                            if (n === 0) break;
+                            const slice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, n);
                             buffer.set(slice, offset + totalRead);
-                            totalRead += Number(n);
-                            if (Number(n) < chunkLen) break;
+                            totalRead += n;
+                            if (n < chunkLen) break;
                         }
 
                         lastReadEndTimestamp = performance.now();
@@ -224,7 +236,11 @@ function setupPortB() {
                 });
 
                 // Peek magic bytes to determine whether this is an RVZ container or raw ISO
-                vfsModule._vfs_read_sync(ctxPtr, 0n, scratchBufPtr, 4);
+                const magicRead = Number(vfsModule._vfs_read_sync(ctxPtr, 0n, scratchBufPtr, 4));
+                if (magicRead < 4) {
+                    if (magicRead === -2) self.postMessage({ type: 'BUILD_ROTATED' });
+                    throw new Error(`Failed to read disc header (${magicRead})`);
+                }
                 const magicSlice = new Uint8Array(vfsMemory.buffer, scratchBufPtr, 4);
                 const isRvz = (magicSlice[0] === 0x52 && magicSlice[1] === 0x56 && magicSlice[2] === 0x5A && magicSlice[3] === 0x01);
                 const fileName = isRvz ? '/vfs/game.rvz' : '/vfs/game.iso';
@@ -245,9 +261,8 @@ function setupPortB() {
                     }
                 });
 
-                // In WebGPU mode, keep single-threaded (0) to preserve swapchain thread affinity;
-                // in Software mode, run dual-core (1) so the CPU and rasterizer run in parallel pthreads.
-                dolphinCore._SetCpuThread(gpuDevice ? 0 : 1);
+                // Run single-threaded core (0) to eliminate pthread lock contention and CPU thrashing
+                dolphinCore._SetCpuThread(0);
                 const backendName = gpuDevice ? 'WebGPU-Real' : 'Software Renderer';
                 const backendPtr = cPath(dolphinCore, backendName);
                 dolphinCore._SetVideoBackend(backendPtr);
@@ -257,10 +272,17 @@ function setupPortB() {
                 if (dolphinCore._SetPpcWasmJitEnabled) dolphinCore._SetPpcWasmJitEnabled(1);
 
                 // Dynamic CPU Clock: 1.0x native for GameCube (486 MHz), 0.75x for Wii (729 MHz)
-                const isGameCube = (currentGameId === 'ssbm' || discSize <= 2000000000);
+                let isGameCube = discPlatform ? (discPlatform === 'gamecube') : false;
+                if (!discPlatform) {
+                    if (!isRvz && Number(vfsModule._vfs_read_sync(ctxPtr, 0x18n, scratchBufPtr, 4)) === 4) {
+                        isGameCube = (new DataView(vfsMemory.buffer, scratchBufPtr, 4).getUint32(0, false) === 0xC2339F3D);
+                    } else {
+                        isGameCube = (currentGameId === 'ssbm' || discSize <= 2000000000);
+                    }
+                }
                 if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(isGameCube ? 1.0 : 0.75);
                 if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(1.0);
-                if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
+                if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(1);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
                 if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
 
@@ -289,14 +311,15 @@ function setupPortB() {
                 }
             } catch (err) {
                 console.error('[emu_worker] Initialization failed:', err);
-                portB.postMessage({ type: 'BOOT_ERROR', reason: err.message });
+                if (!arenaReady) {
+                    portB.postMessage({ type: 'BOOT_ERROR', reason: err.message });
+                } else {
+                    self.postMessage({ type: 'EMU_BOOTED', ok: false, title: '', status: err.message, discSize });
+                }
             }
         }
     };
 }
-
-let lastFpsLogTime = 0;
-let framesInSecond = 0;
 
 function pumpEmuLoop() {
     if (!isRunning || !dolphinCore) return;
