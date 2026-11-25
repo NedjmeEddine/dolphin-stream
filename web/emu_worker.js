@@ -261,8 +261,9 @@ function setupPortB() {
                     }
                 });
 
-                // Run single-threaded core (0) to eliminate pthread lock contention and CPU thrashing
-                dolphinCore._SetCpuThread(0);
+                // In WebGPU mode, keep single-threaded (0) to preserve swapchain thread affinity;
+                // in Software mode, run dual-core (1) so the CPU and rasterizer run in parallel pthreads.
+                dolphinCore._SetCpuThread(gpuDevice ? 0 : 1);
                 const backendName = gpuDevice ? 'WebGPU-Real' : 'Software Renderer';
                 const backendPtr = cPath(dolphinCore, backendName);
                 dolphinCore._SetVideoBackend(backendPtr);
@@ -283,7 +284,7 @@ function setupPortB() {
                 }
                 if (dolphinCore._SetCpuOverclock) dolphinCore._SetCpuOverclock(isGameCube ? 1.0 : 0.75);
                 if (dolphinCore._SetEmulationSpeed) dolphinCore._SetEmulationSpeed(1.0);
-                if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(1);
+                if (!gpuDevice && dolphinCore._SetFastSoftwareRaster) dolphinCore._SetFastSoftwareRaster(3);
                 if (dolphinCore._SetXfbFastPaths) dolphinCore._SetXfbFastPaths(3);
                 if (dolphinCore._SetSoftwareTevHotCaseMode) dolphinCore._SetSoftwareTevHotCaseMode(1);
 
