@@ -73,18 +73,16 @@ go build -o bin/markov-pack externals/vfs-streamer/cmd/markov-pack
 # Activate Emscripten SDK
 source ~/.local/share/emsdk/emsdk_env.sh
 
-# Configure and build with CMake
-mkdir -p build && cd build
-emcmake cmake ..
-emmake make
+# Build web/vfs.js + web/vfs.wasm (and native DiscIO tests via `make test`)
+make wasm
 ```
 
 ### 3. Serving the Player
 
-Launch the streaming HTTP 206 server:
+Launch the multi-game streaming HTTP 206 server:
 
 ```bash
-go build -o bin/streamer-server externals/vfs-streamer/cmd/streamer-server
+go build -o bin/streamer-server ./cmd/dolphin-server
 ./bin/streamer-server -data-dir ./dist -web-dir ./web -addr 127.0.0.1:8080
 ```
 
