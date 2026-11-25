@@ -35,7 +35,7 @@ func init() {
 const (
 	manifestMagic        uint32 = 0x4D534656
 	transitionLogMagic   uint32 = 0x54534656
-	transitionLogVersion uint16 = 1
+	transitionLogVersion uint8  = 1
 	transitionHdrSize           = 16
 	defaultMaxLogBytes   int64  = 64 * 1024 * 1024
 	defaultTelemetryRPM         = 60
@@ -200,8 +200,8 @@ func loadGameSnapshot(dir, transitionsDir string) (*gameSnapshot, error) {
 		}
 		var th [transitionHdrSize]byte
 		binary.LittleEndian.PutUint32(th[0:4], transitionLogMagic)
-		binary.LittleEndian.PutUint16(th[4:6], transitionLogVersion)
-		th[6] = hdr.NeighborIDBytes
+		th[4] = transitionLogVersion
+		th[5] = hdr.NeighborIDBytes
 		binary.LittleEndian.PutUint64(th[8:16], hdr.BuildEtagHash)
 		if _, err := lf.Write(th[:]); err != nil {
 			_ = lf.Close()
@@ -213,8 +213,8 @@ func loadGameSnapshot(dir, transitionsDir string) (*gameSnapshot, error) {
 		var th [transitionHdrSize]byte
 		if _, err := lf.ReadAt(th[:], 0); err != nil ||
 			binary.LittleEndian.Uint32(th[0:4]) != transitionLogMagic ||
-			binary.LittleEndian.Uint16(th[4:6]) != transitionLogVersion ||
-			th[6] != hdr.NeighborIDBytes ||
+			th[4] != transitionLogVersion ||
+			th[5] != hdr.NeighborIDBytes ||
 			binary.LittleEndian.Uint64(th[8:16]) != hdr.BuildEtagHash {
 			_ = lf.Close()
 			closePacks()
