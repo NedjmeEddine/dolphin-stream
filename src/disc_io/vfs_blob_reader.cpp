@@ -26,11 +26,12 @@ std::unique_ptr<VfsBlobReader> VfsBlobReader::Create(VfsFs* fs, const std::strin
         if (openRc == VFS_FS_OK) {
             return std::make_unique<VfsBlobReader>(fs, fd, size);
         }
+        return nullptr;
     }
 
     // shortcut: Fallback for raw ISO streams where TOC is absent (fs unmounted or raw ISO pack),
     // upgrade when all ISOs are packaged in VFSI directory packs.
-    if (fs->ctx) {
+    if (statRc == VFS_FS_ERR_NOT_MOUNTED && fs->ctx) {
         uint64_t archiveSize = vfs_archive_byte_size(fs->ctx);
         if (archiveSize > 0) {
             return std::make_unique<VfsBlobReader>(fs, 0, archiveSize);
@@ -61,26 +62,40 @@ bool VfsBlobReader::Read(uint64_t offset, uint64_t size, uint8_t* out_ptr) {
     if (size == 0) return true;
     if (offset >= m_size || size > m_size - offset) return false;
 
-    if (m_fd != 0) {
-        int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset, out_ptr, size);
-        return bytesRead == static_cast<int64_t>(size);
-    } else if (m_fs && m_fs->ctx) {
-        ptrdiff_t bytesRead = vfs_read_sync(m_fs->ctx, offset, out_ptr, size);
-        return bytesRead == static_cast<ptrdiff_t>(size);
+    uint64_t done = 0;
+    while (done < size) {
+        uint64_t remain = size - done;
+        size_t chunk = (remain > VFS_FS_READ_SLICE_MAX)
+                           ? static_cast<size_t>(VFS_FS_READ_SLICE_MAX)
+                           : static_cast<size_t>(remain);
+        if (m_fd != 0) {
+            int64_t bytesRead = vfs_fs_pread(m_fs, m_fd, offset + done, out_ptr + done, chunk);
+            if (bytesRead != static_cast<int64_t>(chunk)) return false;
+        } else if (m_fs && m_fs->ctx) {
+            ptrdiff_t bytesRead = vfs_read_sync(m_fs->ctx, offset + done, out_ptr + done, chunk);
+            if (bytesRead != static_cast<ptrdiff_t>(chunk)) return false;
+        } else {
+            return false;
+        }
+        done += chunk;
     }
-    return false;
+    return true;
 }
 
 void VfsBlobReader::HintCold(uint64_t offset, uint64_t size) {
-    if (!m_fs || size == 0) return;
+    if (!m_fs || size == 0 || offset >= m_size) return;
+    uint64_t avail = m_size - offset;
+    if (size > avail) size = avail;
+
     if (m_fd != 0) {
         vfs_fs_hint_cold(m_fs, m_fd, offset, size, VFS_FS_HINT_INTERIOR_ONLY);
     } else if (m_fs->ctx) {
         uint32_t shift = vfs_block_shift(m_fs->ctx);
-        uint32_t first_block = static_cast<uint32_t>(offset >> shift);
-        uint32_t last_block = static_cast<uint32_t>((offset + size - 1) >> shift);
-        for (uint32_t b = first_block; b <= last_block; ++b) {
-            vfs_hint_cold(m_fs->ctx, b);
+        uint64_t first_block = offset >> shift;
+        uint64_t last_block = (offset + size - 1) >> shift;
+        if (first_block == 0) first_block = 1; // Keep sector 0 disc header hot
+        for (uint64_t b = first_block; b <= last_block && b <= UINT32_MAX; ++b) {
+            vfs_hint_cold(m_fs->ctx, static_cast<uint32_t>(b));
         }
     }
 }
@@ -122,6 +137,14 @@ void vfs_blob_hint_cold(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t s
 void vfs_blob_close(VfsBlobReaderOpaque* reader) {
     if (!reader) return;
     delete reinterpret_cast<DiscIO::VfsBlobReader*>(reader);
+}
+
+size_t vfs_client_ctx_size(void) {
+    return sizeof(VfsClientContext);
+}
+
+size_t vfs_fs_struct_size(void) {
+    return sizeof(VfsFs);
 }
 
 } // extern "C"

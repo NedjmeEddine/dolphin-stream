@@ -78,6 +78,8 @@ uint64_t vfs_blob_size(const VfsBlobReaderOpaque* reader);
 uint64_t vfs_blob_block_size(const VfsBlobReaderOpaque* reader);
 void vfs_blob_hint_cold(VfsBlobReaderOpaque* reader, uint64_t offset, uint64_t size);
 void vfs_blob_close(VfsBlobReaderOpaque* reader);
+size_t vfs_client_ctx_size(void);
+size_t vfs_fs_struct_size(void);
 
 #ifdef __cplusplus
 }

@@ -15,6 +15,7 @@
 extern "C" {
 #include "externals/vfs-streamer/client/vfs/vfs_client.h"
 #include "externals/vfs-streamer/client/vfs/vfs_fs.h"
+#include "externals/vfs-streamer/client/vfs/vfs_policy.h"
 }
 
 class MockBlobReader : public DiscIO::BlobReader {
@@ -125,6 +126,78 @@ int main() {
     // Test 9: Short disc rejected
     MockBlobReader shortDisc(64);
     assert(!DiscIO::ReadDiscHeader(&shortDisc, &badHdr));
+
+    // Test 10: Real VfsClientContext raw-ISO round-trip, HintCold bounds, and 32-bit size rejection
+    {
+        const uint32_t blockShift = 16; // 64 KB blocks
+        const uint32_t blockSize = 1u << blockShift;
+        const uint32_t totalBlocks = 2;
+        const uint64_t archiveSize = static_cast<uint64_t>(totalBlocks) * blockSize;
+        const uint32_t poolMB = 16;
+        const uint32_t numSets = (poolMB * 1048576u / blockSize) / 8u;
+        const uint32_t totalFrames = numSets * 8u;
+        std::vector<uint8_t> arena(VFS_ARENA_SLAB_OFFSET + totalFrames * blockSize + 64, 0);
+        void* alignedArena = reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(arena.data()) + 63u) & ~uintptr_t(63u));
+
+        uint8_t hdrBytes[32] = {0};
+        hdrBytes[0] = 0x56; hdrBytes[1] = 0x46; hdrBytes[2] = 0x53; hdrBytes[3] = 0x4D; // "VFSM" LE
+        hdrBytes[4] = 1; // version = 1
+        hdrBytes[6] = 1; // topK = 1
+        for (int i = 0; i < 8; i++) hdrBytes[8 + i] = static_cast<uint8_t>((archiveSize >> (i * 8)) & 0xFF);
+        hdrBytes[24] = totalBlocks;
+        hdrBytes[28] = blockShift;
+        hdrBytes[29] = 2;  // neighborIdBytes
+        hdrBytes[30] = 0;  // packShift
+        hdrBytes[31] = poolMB;
+
+        VfsClientContext ctx{};
+        assert(vfs_init_arena(&ctx, alignedArena, hdrBytes) == VFS_OK);
+
+        // Pre-populate blocks 0 and 1 in the L1 slab
+        uint32_t f0 = vfs_policy_set_index(0, ctx.ctrl->num_sets) * 8;
+        ctx.dir[f0].block_id = 0;
+        ctx.dir[f0].state = FRAME_READY;
+        std::memcpy(ctx.slab + f0 * blockSize, "GALE01", 6);
+        ctx.slab[f0 * blockSize + 0x18] = 0xC2;
+        ctx.slab[f0 * blockSize + 0x19] = 0x33;
+        ctx.slab[f0 * blockSize + 0x1A] = 0x9F;
+        ctx.slab[f0 * blockSize + 0x1B] = 0x3D;
+        std::memcpy(ctx.slab + f0 * blockSize + 0x20, "Melee Raw", 9);
+
+        uint32_t f1 = vfs_policy_set_index(1, ctx.ctrl->num_sets) * 8;
+        if (f1 == f0) f1++;
+        ctx.dir[f1].block_id = 1;
+        ctx.dir[f1].state = FRAME_READY;
+        ctx.slab[f1 * blockSize] = 0xAB;
+
+        VfsFs fs{};
+        fs.ctx = &ctx;
+
+        auto isoReader = DiscIO::VfsBlobReader::Create(&fs, "game.iso");
+        assert(isoReader != nullptr);
+        assert(isoReader->GetFd() == 0);
+        assert(isoReader->GetDataSize() == archiveSize);
+
+        DiscIO::DiscHeader hdr;
+        assert(DiscIO::ReadDiscHeader(isoReader.get(), &hdr));
+        assert(hdr.platform == DiscIO::Platform::GameCube);
+        assert(hdr.gameId == "GALE01");
+        assert(hdr.gameTitle == "Melee Raw");
+
+        uint8_t b1 = 0;
+        assert(isoReader->Read(blockSize, 1, &b1) && b1 == 0xAB);
+        assert(!isoReader->Read(0, 0x100000000ULL, &b1)); // 4 GiB rejected cleanly
+
+        // HintCold must skip block 0, mark block 1 cold, and clamp large/overflow ranges safely
+        isoReader->HintCold(0, archiveSize + 1024);
+        assert((ctx.dir[f0].flags & FLAG_COLD_HINT) == 0);
+        assert((ctx.dir[f1].flags & FLAG_COLD_HINT) != 0);
+        isoReader->HintCold(archiveSize, UINT64_MAX);
+        isoReader->HintCold(UINT64_MAX - 10, 100);
+
+        assert(vfs_client_ctx_size() == sizeof(VfsClientContext));
+        assert(vfs_fs_struct_size() == sizeof(VfsFs));
+    }
 
     std::cout << "[disc_io_test] All DiscIO BlobReader assertions PASSED successfully." << std::endl;
     return 0;
