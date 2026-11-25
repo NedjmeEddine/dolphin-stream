@@ -274,8 +274,9 @@ function setupPortB() {
                 // Dynamic CPU Clock: 1.0x native for GameCube (486 MHz), 0.75x for Wii (729 MHz)
                 let isGameCube = discPlatform ? (discPlatform === 'gamecube') : false;
                 if (!discPlatform) {
-                    if (!isRvz && Number(vfsModule._vfs_read_sync(ctxPtr, 0x18n, scratchBufPtr, 4)) === 4) {
-                        isGameCube = (new DataView(vfsMemory.buffer, scratchBufPtr, 4).getUint32(0, false) === 0xC2339F3D);
+                    if (!isRvz && Number(vfsModule._vfs_read_sync(ctxPtr, 0x18n, scratchBufPtr, 8)) === 8) {
+                        const mDv = new DataView(vfsMemory.buffer, scratchBufPtr, 8);
+                        isGameCube = (mDv.getUint32(0, false) !== 0x5D1C9EA3 && mDv.getUint32(4, false) === 0xC2339F3D);
                     } else {
                         isGameCube = (currentGameId === 'ssbm' || discSize <= 2000000000);
                     }

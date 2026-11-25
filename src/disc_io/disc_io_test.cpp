@@ -91,9 +91,9 @@ int main() {
 
     // Test 6: GameCube & Wii Boot Sector Header Parsing (ReadDiscHeader)
     MockBlobReader gcDisc(1048576);
-    // Write GameCube boot sector: "GALE01" at 0x00, 0xC2339F3D at 0x18, title at 0x20
+    // Write GameCube boot sector: "GALE01" at 0x00, 0xC2339F3D at 0x1C, title at 0x20
     std::memcpy(gcDisc.data.data(), "GALE01", 6);
-    gcDisc.data[0x18] = 0xC2; gcDisc.data[0x19] = 0x33; gcDisc.data[0x1A] = 0x9F; gcDisc.data[0x1B] = 0x3D;
+    gcDisc.data[0x1C] = 0xC2; gcDisc.data[0x1D] = 0x33; gcDisc.data[0x1E] = 0x9F; gcDisc.data[0x1F] = 0x3D;
     std::memcpy(gcDisc.data.data() + 0x20, "Super Smash Bros. Melee", 23);
 
     DiscIO::DiscHeader gcHdr;
@@ -158,10 +158,10 @@ int main() {
         ctx.dir[f0].block_id = 0;
         ctx.dir[f0].state = FRAME_READY;
         std::memcpy(ctx.slab + f0 * blockSize, "GALE01", 6);
-        ctx.slab[f0 * blockSize + 0x18] = 0xC2;
-        ctx.slab[f0 * blockSize + 0x19] = 0x33;
-        ctx.slab[f0 * blockSize + 0x1A] = 0x9F;
-        ctx.slab[f0 * blockSize + 0x1B] = 0x3D;
+        ctx.slab[f0 * blockSize + 0x1C] = 0xC2;
+        ctx.slab[f0 * blockSize + 0x1D] = 0x33;
+        ctx.slab[f0 * blockSize + 0x1E] = 0x9F;
+        ctx.slab[f0 * blockSize + 0x1F] = 0x3D;
         std::memcpy(ctx.slab + f0 * blockSize + 0x20, "Melee Raw", 9);
 
         uint32_t f1 = vfs_policy_set_index(1, ctx.ctrl->num_sets) * 8;

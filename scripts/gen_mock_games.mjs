@@ -22,8 +22,8 @@ function createMockIso(filePath, gameId, magicU32, title, sizeBytes = 1048576) {
     const buf = Buffer.alloc(sizeBytes, 0);
     // 0x00..0x05: Game ID (6 bytes)
     buf.write(gameId, 0, 6, 'ascii');
-    // 0x18..0x1B: Magic (4 bytes Big-Endian)
-    buf.writeUInt32BE(magicU32, 0x18);
+    // 0x18..0x1B (Wii) or 0x1C..0x1F (GameCube): Magic (4 bytes Big-Endian)
+    buf.writeUInt32BE(magicU32, magicU32 === 0xC2339F3D ? 0x1C : 0x18);
     // 0x20..0x5F: Title (up to 64 bytes)
     buf.write(title, 0x20, Math.min(title.length, 64), 'ascii');
 

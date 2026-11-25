@@ -17,15 +17,23 @@ bool ReadDiscHeader(BlobReader* reader, DiscHeader* out) {
         return false;
     }
 
-    uint32_t magic = (static_cast<uint32_t>(sector0[0x18]) << 24) |
-                     (static_cast<uint32_t>(sector0[0x19]) << 16) |
-                     (static_cast<uint32_t>(sector0[0x1A]) << 8)  |
-                      static_cast<uint32_t>(sector0[0x1B]);
+    auto readBE32 = [](const uint8_t* p) -> uint32_t {
+        return (static_cast<uint32_t>(p[0]) << 24) |
+               (static_cast<uint32_t>(p[1]) << 16) |
+               (static_cast<uint32_t>(p[2]) << 8)  |
+                static_cast<uint32_t>(p[3]);
+    };
 
-    if (magic == GAMECUBE_MAGIC) {
-        out->platform = Platform::GameCube;
-    } else if (magic == WII_MAGIC) {
+    uint32_t magic18 = readBE32(sector0.data() + 0x18);
+    uint32_t magic1C = readBE32(sector0.data() + 0x1C);
+    uint32_t magic = 0;
+
+    if (magic18 == WII_MAGIC) {
         out->platform = Platform::Wii;
+        magic = magic18;
+    } else if (magic1C == GAMECUBE_MAGIC || magic18 == GAMECUBE_MAGIC) {
+        out->platform = Platform::GameCube;
+        magic = GAMECUBE_MAGIC;
     } else {
         out->platform = Platform::Unknown;
         return false;
